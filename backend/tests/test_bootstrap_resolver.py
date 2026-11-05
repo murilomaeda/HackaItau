@@ -1,5 +1,7 @@
 """Bootstrap Client Resolver: só permissão do usuário; saída mínima; sem listagem/search irrestrito."""
 
+import pytest
+
 from app.core.events import EventLog
 from app.core.schemas.context import UserIdentity
 from app.core.schemas.events import EventType
@@ -45,8 +47,17 @@ def test_short_name_and_wildcards_are_not_found(repo, analyst):
 
 def test_prefix_and_partial_names_do_not_match(repo, analyst):
     res = _resolver(repo)
-    assert res.resolve(analyst, "Fazenda Horizonte").status == "not_found"
     assert res.resolve(analyst, "Horizonte S.A.").status == "not_found"
+    assert res.resolve(analyst, "Horizonte").status == "not_found"
+    assert res.resolve(analyst, "Fazenda Horizonte Agro").status == "not_found"
+    assert res.resolve(analyst, "Fazenda").status == "not_found"
+
+
+@pytest.mark.parametrize("ref", ["Fazenda Horizonte", "fazenda horizonte sa", "FAZENDA HORIZONTE S/A"])
+def test_legal_suffix_is_optional(repo, analyst, ref):
+    """Sufixo societário não muda a empresa; o resto do nome continua exigindo igualdade exata."""
+    r = _resolver(repo).resolve(analyst, ref)
+    assert r.status == "ok" and r.client is not None and r.client.client_id == "CLIENTE-001"
 
 
 def test_ambiguous_returns_count_without_candidates(analyst):

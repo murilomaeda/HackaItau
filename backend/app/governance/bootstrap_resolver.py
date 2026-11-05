@@ -56,6 +56,21 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+_LEGAL_SUFFIXES = (" s a", " sa", " s/a", " ltda", " eireli", " me", " epp")
+
+
+def legal_core(normalized: str) -> str:
+    """Nome normalizado sem o sufixo societário final ("fazenda horizonte s a" → "fazenda horizonte")."""
+    core = normalized
+    changed = True
+    while changed:
+        changed = False
+        for suf in _LEGAL_SUFFIXES:
+            if core.endswith(suf) and len(core) > len(suf):
+                core, changed = core[: -len(suf)].rstrip(), True
+    return core
+
+
 def is_client_id(ref: str) -> bool:
     return bool(CLIENT_ID_RE.match(ref.strip().upper()))
 

@@ -32,7 +32,9 @@ CONTEXT_LABEL = {
 def open_questions(it: InterpretedDemand | None) -> list[OpenQuestion]:
     if it is None:
         return []
-    qs: list[OpenQuestion] = []
+    qs: list[OpenQuestion] = [
+        OpenQuestion(key=f"confirmacao_{i + 1}", question=q, blocking=False) for i, q in enumerate(it.ambiguities)
+    ]
     if it.requested_amount is None:
         qs.append(OpenQuestion(key="requested_amount", question="Qual o valor que o cliente está pedindo?", blocking=True))
     if it.purpose is None:

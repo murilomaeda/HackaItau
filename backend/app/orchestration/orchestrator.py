@@ -155,6 +155,8 @@ class Orchestrator:
                     update[field] = answers[key]
             if answers.get("tipo_de_operacao"):
                 update["request_kind"] = answers["tipo_de_operacao"]
+            if it.ambiguities and answers:  # o analista respondeu: a leitura dele vale mais que a dúvida registrada
+                update["ambiguities"] = []
             if update:
                 rec.state.interpreted = it.model_copy(update=update)
         rec.state.analyst_context = describe_context(rec.answers)
