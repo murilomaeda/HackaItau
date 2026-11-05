@@ -126,7 +126,10 @@ _PURPOSE_HINTS: tuple[tuple[str, str], ...] = (
     ),
 )
 _CROPS = ("soja", "milho", "algodao", "algodão", "cana", "cafe", "café", "trigo", "arroz", "feijao", "feijão", "sorgo")
-_CROP_HINTS: tuple[tuple[str, str], ...] = ((r"safrinha", "milho"), (r"cana-de-a[cç][uú]car", "cana"))
+_CROP_HINTS: tuple[tuple[str, str], ...] = (
+    (r"safrinha", "milho"),
+    (r"canavia(?:l|is)|cana-de-acucar", "cana"),
+)
 
 _UNITS = {
     "um": 1,
@@ -200,9 +203,12 @@ def _business_name(text: str) -> str | None:
     if not m:
         return None
     words: list[str] = []
+    proper = m.group("name")[0].isupper()  # "Fazenda Horizonte custear": num nome próprio, minúscula encerra
     for raw in m.group("name").split():
         w = raw.rstrip(",;:!?")
         if words and (w.lower() in _NAME_STOP or re.match(r"^\d", w)):
+            break
+        if words and proper and w[:1].islower() and w.lower() not in {"do", "da", "de", "dos", "das"}:
             break
         words.append(w)
         if w.lower() in _LEGAL_SUFFIX:
@@ -231,15 +237,17 @@ def _to_number(raw: str) -> float:
     return float(raw.replace(".", ""))
 
 
-def parse_amount(text: str, *, bare_number_ok: bool = False) -> float | None:
-    """Valor em reais a partir de texto livre. Em prosa, número sem R$/unidade é ignorado (ano, área, sc/ha);
-    `bare_number_ok` é para campos que só contêm o valor (ex.: resposta do formulário)."""
-    best: float | None = None
+def amounts(text: str, *, bare_number_ok: bool = False) -> list[float]:
+    """Todos os valores em reais citados no texto, na ordem. Área ("42 mil ha") e sacas não contam."""
+    out: list[float] = []
     text = _words_to_digits(text)
     for m in _AMOUNT_RE.finditer(text):
         raw, unit = m.group("num"), (m.group("unit") or "").lower()
         has_currency = m.group(0).lstrip().startswith(("R$", "$"))
-        if not unit and not has_currency and not bare_number_ok:
+        big_literal = raw.count(".") >= 2 or raw.count(" ") >= 2  # 50.000.000 sem R$ ainda é dinheiro
+        if not unit and not has_currency and not bare_number_ok and not big_literal:
+            continue
+        if re.match(r"\s*(?:ha\b|hectares|sacas|sc\b|t\b|ton)", text[m.end() :], re.IGNORECASE):
             continue
         mult = 1.0
         if unit.startswith("milh") or unit in ("mi", "mm", "m"):
@@ -248,10 +256,16 @@ def parse_amount(text: str, *, bare_number_ok: bool = False) -> float | None:
             mult = 1e9
         elif unit in ("mil", "k"):
             mult = 1e3
-        value = _to_number(raw) * mult
-        if best is None or value > best:
-            best = value
-    return best
+        out.append(_to_number(raw) * mult)
+    return out
+
+
+def parse_amount(text: str, *, bare_number_ok: bool = False) -> float | None:
+    """Valor em reais a partir de texto livre. Em prosa, número sem R$/unidade é ignorado (ano, área, sc/ha);
+    `bare_number_ok` é para campos que só contêm o valor (ex.: resposta do formulário).
+    Com vários valores, fica o maior; `heuristic_interpret` registra a ambiguidade."""
+    found = amounts(text, bare_number_ok=bare_number_ok)
+    return max(found) if found else None
 
 
 def heuristic_interpret(prompt: str) -> InterpretedDemand:
@@ -273,6 +287,20 @@ def heuristic_interpret(prompt: str) -> InterpretedDemand:
         (c for pat, c in _CROP_HINTS if re.search(pat, lower)), None
     )
     cycle = _cycle(text)
+
+    ambiguities: list[str] = []
+    ids = {m.upper() for m in _CLIENT_ID_RE.findall(text)}
+    m = _CLIENT_NAME_RE.search(text)
+    names = {n for n in (m.group("name") if m else None, _business_name(text)) if n and not _CLIENT_ID_RE.search(n)}
+    if len(ids) > 1 or (ids and names):
+        client_ref = None  # dois clientes no mesmo pedido: perguntar em vez de escolher
+        ambiguities.append("O pedido cita mais de um cliente. Para qual deles é a operação?")
+    if len({round(v) for v in amounts(text) if v >= 100_000}) > 1:
+        ambiguities.append("O texto cita mais de um valor. Qual é o valor pedido nesta operação?")
+    crops = {_strip_accents(c) for c in _CROPS if re.search(rf"\b{_strip_accents(c)}\b", lower)}
+    crops |= {c for pat, c in _CROP_HINTS if re.search(pat, lower)}
+    if len(crops) > 1:
+        ambiguities.append(f"O pedido cita {' e '.join(sorted(crops))}. A análise deve considerar qual cultura?")
 
     tenor: int | None = None
     if m := _TENOR_MONTHS_RE.search(text):
@@ -297,6 +325,7 @@ def heuristic_interpret(prompt: str) -> InterpretedDemand:
             None,
         ),
         area_hectares=area,
+        ambiguities=ambiguities,
     )
 
 
@@ -420,21 +449,24 @@ def _fmt(field: str, v: Any) -> str:
 
 
 def reconcile(base: InterpretedDemand, llm: dict[str, Any], reading: DemandReading, dropped: list[str]) -> InterpretedDemand:
-    """Junta as duas leituras. LLM vence onde entendeu o texto; regex vence em código explícito de cliente;
-    divergência material vira pergunta (ambiguidade) em vez de palpite silencioso."""
+    """Junta as duas leituras. O LLM vence onde entendeu o texto; divergência material vira pergunta ao analista
+    em vez de palpite silencioso. Cliente em disputa fica em aberto: o escopo do case nunca nasce de um palpite."""
     update: dict[str, Any] = {}
     ambiguities = [a.strip() for a in reading.ambiguities if a and a.strip()][:4]
+    # vários clientes no texto: mesmo que o LLM escolha um, o analista confirma (o escopo trava nesse cliente)
+    ambiguities += [a for a in base.ambiguities if "cliente" in a]
     for field in _MATERIAL:
         h, m = getattr(base, field), llm.get(field)
         if m is None:
             continue
         if h is not None and not _same(field, h, m):
-            explicit_id = field == "client_ref" and _CLIENT_ID_RE.fullmatch(str(h))
-            chosen = h if explicit_id else m
-            other = m if explicit_id else h
-            update[field] = chosen
+            if field == "client_ref":  # duas leituras de cliente: não escolher, perguntar
+                update[field] = None
+                ambiguities.append(f"O pedido é para {h} ou para {m}?")
+                continue
+            update[field] = m
             ambiguities.append(
-                f"Confirme {_LABEL[field]}: entendi {_fmt(field, chosen)}, mas o texto também cita {_fmt(field, other)}."
+                f"Confirme {_LABEL[field]}: entendi {_fmt(field, m)}, mas o texto também cita {_fmt(field, h)}."
             )
         else:
             update[field] = m

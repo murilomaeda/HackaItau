@@ -6,6 +6,7 @@
 #   make benchmark comparativo real (API paga): 8 casos × 2 arquiteturas × 2 modelos
 #   make benchmark-plan mostra os casos e modelos sem chamar a API
 #   make benchmark-audit confere offline os 48 registros publicados e seus custos
+#   make benchmark-leitura 36 pedidos escritos de jeitos diferentes; LLM=1 inclui a leitura com LLM (API paga)
 
 SHELL := /bin/bash
 .ONESHELL:
@@ -15,7 +16,7 @@ VENV   := backend/.venv
 PY     := $(CURDIR)/$(VENV)/bin/python
 PORT   ?= 8000
 
-.PHONY: help install install-backend install-frontend env run dev backend frontend build test clean benchmark benchmark-plan benchmark-audit
+.PHONY: help install install-backend install-frontend env run dev backend frontend build test clean benchmark benchmark-plan benchmark-audit benchmark-leitura
 
 help:
 	@grep -E '^#   make' Makefile | sed 's/^#   //'
@@ -57,6 +58,9 @@ test:
 
 benchmark:
 	$(PY) -m app.evaluation.runner $(ARGS)
+
+benchmark-leitura:
+	cd $(CURDIR)/backend && $(PY) -m app.evaluation.interpretation $(if $(LLM),--llm) $(ARGS)
 
 benchmark-audit:
 	$(PY) -m app.evaluation.audit
