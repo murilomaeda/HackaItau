@@ -67,6 +67,18 @@ class ScenarioResult(BaseModel):
 class RiskLLMOutput(BaseModel):
     """O que o LLM devolve no Risk: só texto/qualitativo. Nenhum número material."""
 
+    repayment_thesis: str = Field(
+        default="",
+        description="De onde sai o dinheiro para pagar e o que precisa dar certo, em 2 a 4 frases, específico do caso",
+    )
+    critical_assumptions: list[EvidencedItem] = Field(
+        default_factory=list,
+        description="Premissas que, se falharem, quebram o pagamento; cite o break_even do CALC de stress",
+    )
+    questions_for_analyst: list[str] = Field(
+        default_factory=list,
+        description="Perguntas de diligência que mudariam a leitura do risco (ao cliente ou a outra área)",
+    )
     risk_narrative: str
     main_risks: list[EvidencedItem]
     mitigants: list[EvidencedItem] = Field(default_factory=list)

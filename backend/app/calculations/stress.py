@@ -51,3 +51,35 @@ def run_scenarios(base: MetricInputs, scenarios: list[StressScenario], t: Thresh
 def worst_class(outcomes: list[ScenarioOutcome]) -> CoverageClass:
     order: list[CoverageClass] = ["comfortable", "reduced_buffer", "attention_required", "insufficient"]
     return max((o.classification for o in outcomes), key=order.index, default="comfortable")
+
+
+class BreakEven(BaseModel):
+    """Quanto cada premissa aguenta de choque isolado até a cobertura cair a `target_coverage`.
+    Valor negativo: a cobertura já está abaixo do alvo no cenário base."""
+
+    target_coverage: float
+    max_price_drop_pct: float
+    max_productivity_drop_pct: float
+    max_cost_increase_pct: float
+
+
+def break_even(base: MetricInputs, target_coverage: float) -> BreakEven:
+    """Fechado na fórmula: caixa = área·prod·preço − área·custo; cobertura = caixa / valor pedido."""
+    a, prod, price, cost, req = (
+        base.planted_area_hectares,
+        base.productivity,
+        base.price,
+        base.cost_per_hectare,
+        base.requested_amount,
+    )
+    needed_revenue = target_coverage * req + a * cost  # receita mínima para atingir o alvo
+    revenue = a * prod * price
+    drop = 1 - needed_revenue / revenue if revenue > 0 else -1.0
+    max_cost = (revenue - target_coverage * req) / a if a > 0 else 0.0
+    cost_up = max_cost / cost - 1 if cost > 0 else 0.0
+    return BreakEven(
+        target_coverage=target_coverage,
+        max_price_drop_pct=round(drop * 100, 1),
+        max_productivity_drop_pct=round(drop * 100, 1),  # receita é linear em preço e em produtividade
+        max_cost_increase_pct=round(cost_up * 100, 1),
+    )

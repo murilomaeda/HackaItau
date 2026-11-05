@@ -4,7 +4,7 @@ from typing import Any
 
 from app.calculations.credit_metrics import FORMULA, MetricInputs, credit_metrics
 from app.calculations.policy_params import load_policy_params
-from app.calculations.stress import run_scenarios, worst_class
+from app.calculations.stress import break_even, run_scenarios, worst_class
 from app.core.schemas.evidence import CalculationRecord, calculation_id
 from app.tools.deps import ToolDeps
 from app.tools.registry import AssumptionSetParams, CreditMetricsParams, StressParams, register_handler
@@ -53,12 +53,18 @@ async def run_stress_scenarios(params: dict[str, Any], deps: ToolDeps) -> Calcul
     return CalculationRecord(
         id=calculation_id(CALC_STRESS, deps.round),
         name=CALC_STRESS,
-        formula="para cada cenário: inputs_choque = inputs * (1 + shock); credit_metrics(inputs_choque)",
+        formula="para cada cenário: inputs_choque = inputs * (1 + shock); credit_metrics(inputs_choque). "
+        "break_even: choque isolado máximo em preço, produtividade ou custo até a cobertura atingir o alvo",
         inputs=inputs.model_dump() | {"scenario_ids": p.scenario_ids, "baseline_policy": p.assumptions.baseline_policy},
         input_sources=dict(p.assumptions.sources),
         thresholds_source_ids=list(p.assumptions.thresholds_source_ids or policy.thresholds.kb_ids())
         + [policy.thresholds.scenarios_kb_id()],
-        outputs={"scenarios": [o.model_dump(exclude={"inputs"}) for o in outcomes]},
+        outputs={
+            "scenarios": [o.model_dump(exclude={"inputs"}) for o in outcomes],
+            "break_even": [
+                break_even(inputs, target).model_dump() for target in (1.0, policy.thresholds.coverage.comfortable_min)
+            ],
+        },
         classification=worst_class(outcomes),
         computed_by_agent=deps.agent_id,
         round=deps.round,

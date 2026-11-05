@@ -106,6 +106,8 @@ class RiskAgent(BaseAgent):
             num = tok.lower().rstrip("x").strip()
             if num not in known:
                 warnings.append(f"numero_no_texto_divergente_do_calc:{tok.strip()}")
+        if not llm.repayment_thesis.strip():
+            warnings.append("tese_de_pagamento_ausente")
 
         output = RiskOutput(
             **llm.model_dump(),
@@ -132,7 +134,7 @@ def _calc(evidence: EvidenceBundle, name: str) -> CalculationRecord:
 
 
 def _all_text(llm: RiskLLMOutput) -> str:
-    parts = [llm.risk_narrative]
-    for group in (llm.main_risks, llm.mitigants, llm.qualitative_assumptions, llm.uncertainties):
+    parts = [llm.repayment_thesis, llm.risk_narrative]
+    for group in (llm.critical_assumptions, llm.main_risks, llm.mitigants, llm.qualitative_assumptions, llm.uncertainties):
         parts.extend(i.message for i in group)
     return " ".join(parts)

@@ -120,6 +120,16 @@ def _eligibility(ev: _Evidence) -> dict[str, Any]:
 def _risk(ev: _Evidence) -> dict[str, Any]:
     agro, market, fin = ev.ids("agro_profile"), ev.ids("market_data"), ev.ids("client_financials")
     return {
+        "repayment_thesis": "O pagamento sai da venda da safra financiada; depende de colher perto do histórico e de "
+        "o preço não cair além do colchão calculado.",
+        "critical_assumptions": [
+            {
+                "code": "PRICE_BUFFER",
+                "message": "Preço precisa ficar acima do ponto de equilíbrio.",
+                "evidence_ids": ev.calcs,
+            }
+        ],
+        "questions_for_analyst": ["Há contrato de venda antecipada ou hedge para parte da produção?"],
         "risk_narrative": "Métricas e cenários vêm dos cálculos citados; sensibilidade a preço e produtividade e "
         "alavancagem pró-forma são os pontos de atenção.",
         "main_risks": [

@@ -4,7 +4,7 @@ import { keyFigures } from '../answer'
 import { DOMAIN_LABEL, ELIGIBILITY_LABEL, REVIEW_STATUS_LABEL, SEVERITY_ORDER, num } from '../format'
 import { assumptionName, assumptionValue, coverageText, money, readableItem } from '../humanize'
 import { agentName } from '../squad'
-import type { CaseState, Finding, Report, ReportItem } from '../types'
+import type { AnalysisView, CaseState, Finding, Report, ReportItem } from '../types'
 import { CoverageChart } from './CoverageChart'
 import { REPORT_SECTIONS } from '../panel'
 import { OptionCards } from './Options'
@@ -63,6 +63,12 @@ export function ReportView({ report, state, section }: { report: Report; state: 
           ))}
         </div>
       </header>
+
+      {r.analysis && (r.analysis.repayment_thesis || r.analysis.break_even.length > 0) && (
+        <Section title="Raciocínio da análise">
+          <Reasoning a={r.analysis} />
+        </Section>
+      )}
 
       <Section id={REPORT_SECTIONS.capacity} title="Capacidade de pagamento" origin="code">
         <CoverageChart report={r} />
@@ -197,6 +203,64 @@ function Section({
       </h3>
       {children}
     </section>
+  )
+}
+
+const pct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+
+function breakEvenText(b: AnalysisView['break_even'][number]) {
+  const target = coverageText(b.target_coverage)
+  if (b.max_price_drop_pct < 0) return `A cobertura já está abaixo de ${target} no cenário base.`
+  return `Até ${target}: preço ou produtividade podem cair ${pct(b.max_price_drop_pct)}, ou o custo por hectare subir ${pct(b.max_cost_increase_pct)}.`
+}
+
+function Reasoning({ a }: { a: AnalysisView }) {
+  return (
+    <div className="item-list">
+      {a.repayment_thesis && (
+        <>
+          <h4>
+            Tese de pagamento <span className="origin llm">escrito pelo modelo</span>
+          </h4>
+          <p>{a.repayment_thesis}</p>
+        </>
+      )}
+      {a.break_even.length > 0 && (
+        <>
+          <h4>
+            Onde a operação quebra <span className="origin code">calculado por código</span>
+          </h4>
+          <ul>
+            {a.break_even.map((b) => (
+              <li key={b.target_coverage}>
+                <span>{breakEvenText(b)}</span>
+                {a.break_even_calculation_id && <Sources ids={[a.break_even_calculation_id]} />}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {a.critical_assumptions.length > 0 && <ItemList title="Premissas que sustentam o pagamento" items={a.critical_assumptions} />}
+      {a.questions_for_analyst.length > 0 && (
+        <>
+          <h4>Perguntas de diligência sugeridas</h4>
+          <ul>
+            {a.questions_for_analyst.map((q) => (
+              <li key={q}>
+                <span>{q}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {a.demand_reading && (
+        <Fold title="Como o pedido foi lido">
+          <p className="doc-note" style={{ whiteSpace: 'pre-line' }}>
+            {a.demand_reading}
+          </p>
+        </Fold>
+      )}
+    </div>
   )
 }
 

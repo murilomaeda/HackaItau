@@ -107,6 +107,24 @@ class PolicyLimits(BaseModel):
     pro_forma_leverage_max: float | None = None
 
 
+class BreakEvenView(BaseModel):
+    target_coverage: float
+    max_price_drop_pct: float
+    max_productivity_drop_pct: float
+    max_cost_increase_pct: float
+
+
+class AnalysisView(BaseModel):
+    """O argumento do Risk: tese de pagamento, onde quebra (break-even por código) e o que perguntar a seguir."""
+
+    repayment_thesis: str = ""
+    critical_assumptions: list[ReportItem] = Field(default_factory=list)
+    break_even: list[BreakEvenView] = Field(default_factory=list)
+    break_even_calculation_id: str | None = None
+    questions_for_analyst: list[str] = Field(default_factory=list)
+    demand_reading: str = ""  # como o pedido em linguagem natural foi lido
+
+
 class Report(BaseModel):
     case_id: str
     client_id: str
@@ -128,3 +146,4 @@ class Report(BaseModel):
     governance: GovernanceView
     human_gate: HumanGateView
     policy_limits: PolicyLimits = PolicyLimits()
+    analysis: AnalysisView = AnalysisView()

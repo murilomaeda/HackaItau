@@ -111,6 +111,8 @@ export interface InterpretedDemand {
   guarantees: string[]
   region: string | null
   area_hectares: number | null
+  reasoning?: string
+  ambiguities?: string[]
 }
 
 export interface OpenQuestion {
@@ -396,6 +398,22 @@ export interface HumanGateView {
   notice: string
 }
 
+export interface BreakEven {
+  target_coverage: number
+  max_price_drop_pct: number
+  max_productivity_drop_pct: number
+  max_cost_increase_pct: number
+}
+
+export interface AnalysisView {
+  repayment_thesis: string
+  critical_assumptions: ReportItem[]
+  break_even: BreakEven[]
+  break_even_calculation_id: string | null
+  questions_for_analyst: string[]
+  demand_reading: string
+}
+
 export interface Report {
   case_id: string
   client_id: string
@@ -431,6 +449,7 @@ export interface Report {
   }
   governance: GovernanceView
   human_gate: HumanGateView
+  analysis?: AnalysisView
   policy_limits?: {
     source_doc_id: string
     coverage_comfortable_min: number | null

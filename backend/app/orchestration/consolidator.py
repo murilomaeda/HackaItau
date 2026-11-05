@@ -18,7 +18,9 @@ from app.core.schemas.outputs import (
 from app.core.schemas.report import (
     AgentGovernanceView,
     AlternativeView,
+    AnalysisView,
     AssumptionView,
+    BreakEvenView,
     CalculationView,
     GovernanceView,
     HumanGateView,
@@ -157,6 +159,17 @@ def consolidate(
     )
     alternatives = [AlternativeView(**a.model_dump()) for a in struct.alternatives] if struct else []
 
+    stress_id = results[RISK].calculation_ids[-1] if RISK in results and results[RISK].calculation_ids else None
+    stress_calc = next((c for c in evidence.calculations() if c.id == stress_id), None)
+    analysis = AnalysisView(
+        repayment_thesis=risk.repayment_thesis if risk else "",
+        critical_assumptions=[_item(i) for i in risk.critical_assumptions] if risk else [],
+        break_even=[BreakEvenView(**b) for b in (stress_calc.outputs.get("break_even", []) if stress_calc else [])],
+        break_even_calculation_id=stress_calc.id if stress_calc else None,
+        questions_for_analyst=list(risk.questions_for_analyst) if risk else [],
+        demand_reading=d.reasoning,
+    )
+
     open_count = sum(1 for f in review.findings if f.status == "open")
     resolved_count = sum(1 for f in review.findings if f.status == "resolved")
     limits = load_policy_params().thresholds
@@ -173,7 +186,7 @@ def consolidate(
         client_id=state.scope.client_ids[0],
         generated_at=datetime.now(timezone.utc),
         summary=ReportSummary(
-            objective=d.notes or f"Análise de {d.purpose or 'crédito'} — {d.crop or 'cultura n/d'} {d.cycle or ''}".strip(),
+            objective=f"Análise de {d.purpose or 'crédito'} — {d.crop or 'cultura n/d'} {d.cycle or ''}".strip(),
             requested_amount=d.requested_amount,
             purpose=d.purpose,
             crop=d.crop,
@@ -201,4 +214,5 @@ def consolidate(
         ),
         governance=_governance(state, results, events, evidence),
         human_gate=HumanGateView(status="pending", available_actions=["approve_next_step", "request_adjustment"]),
+        analysis=analysis,
     )
