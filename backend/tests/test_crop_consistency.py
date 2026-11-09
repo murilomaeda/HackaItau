@@ -111,9 +111,21 @@ async def test_missing_or_incompatible_market_blocks_instead_of_calculating(mark
 
 
 async def test_unsupported_crop_requests_data_instead_of_crashing():
-    _, rec = await run_case("algodão", CropRepo(profile="algodão", plan="algodao"))
+    _, rec = await run_case("algodão", CropRepo(profile="algodão", plan="algodao", market="missing"))
     assert_blocked_before_risk(rec, "market_data")
     assert rec.state.error is None
+
+
+async def test_price_unit_must_be_the_one_of_the_crop():
+    """Cana em tonelada é válida; a mesma cotação em saca não pode entrar em conta com produtividade em t/ha."""
+
+    class SugarcaneInSacks(CropRepo):
+        def get_market_data(self, commodity):
+            return super().get_market_data(commodity) | {"unit": "BRL/saca"}
+
+    _, rec = await run_case("cana", SugarcaneInSacks(profile="cana", plan="cana"))
+    assert_blocked_before_risk(rec, "market_data")
+    assert "BRL/tonelada" in rec.state.missing_info.message
 
 
 async def test_valid_maize_uses_maize_numbers_and_excludes_soy_product():

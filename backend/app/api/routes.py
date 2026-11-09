@@ -57,7 +57,7 @@ def assist_message(body: AssistRequest, c: Deps) -> AssistReply:
             raise _handle(exc) from exc
         if state.user_id != user.user_id:
             raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "case de outro usuário"})
-    return assist(body.text, user, state, c.knowledge)
+    return assist(body.text, user, state, c.knowledge, c.repo)
 
 
 @router.get("/metrics")

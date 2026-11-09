@@ -125,10 +125,17 @@ _PURPOSE_HINTS: tuple[tuple[str, str], ...] = (
         "comercializacao",
     ),
 )
-_CROPS = ("soja", "milho", "algodao", "algodão", "cana", "cafe", "café", "trigo", "arroz", "feijao", "feijão", "sorgo")
+_CROPS = (
+    "soja", "milho", "algodao", "algodão", "cana", "cafe", "café", "trigo", "arroz", "feijao", "feijão", "sorgo",
+    "laranja", "mandioca", "cacau", "banana",
+)  # fmt: skip
 _CROP_HINTS: tuple[tuple[str, str], ...] = (
     (r"safrinha", "milho"),
     (r"canavia(?:l|is)|cana-de-acucar", "cana"),
+    (r"laranjais|laranjal|citros|citricultura", "laranja"),
+    (r"macaxeira|aipim", "mandioca"),
+    (r"cacaueiro|cacauais", "cacau"),
+    (r"bananal|bananais|bananicultura", "banana"),
 )
 
 _UNITS = {
@@ -238,7 +245,7 @@ def _to_number(raw: str) -> float:
 
 
 def amounts(text: str, *, bare_number_ok: bool = False) -> list[float]:
-    """Todos os valores em reais citados no texto, na ordem. Área ("42 mil ha") e sacas não contam."""
+    """Todos os valores em reais citados no texto, na ordem. Área ("42 mil ha") e volume (sacas, caixas) não contam."""
     out: list[float] = []
     text = _words_to_digits(text)
     for m in _AMOUNT_RE.finditer(text):
@@ -247,7 +254,7 @@ def amounts(text: str, *, bare_number_ok: bool = False) -> list[float]:
         big_literal = raw.count(".") >= 2 or raw.count(" ") >= 2  # 50.000.000 sem R$ ainda é dinheiro
         if not unit and not has_currency and not bare_number_ok and not big_literal:
             continue
-        if re.match(r"\s*(?:ha\b|hectares|sacas|sc\b|t\b|ton)", text[m.end() :], re.IGNORECASE):
+        if re.match(r"\s*(?:ha\b|hectares|sacas|sc\b|t\b|ton|caixas|cx\b|arrobas|@)", text[m.end() :], re.IGNORECASE):
             continue
         mult = 1.0
         if unit.startswith("milh") or unit in ("mi", "mm", "m"):
@@ -347,7 +354,8 @@ comercializacao (estocar, vender depois, pré-comercialização) ou industrializ
 4. Qual cultura e qual safra (AAAA/AA)? "safrinha" é milho de segunda safra. Safra relativa ("próxima safra", \
 "essa safra") deve ser convertida pela data de hoje e também registrada como ambiguidade.
 5. É operação nova, renovação ou aumento de limite? Há prazo, garantias, região ou área?
-6. O que ficou ambíguo ou faltando? Escreva cada ponto como uma pergunta curta e objetiva ao analista.
+6. O que ficou ambíguo? Escreva cada dúvida como uma pergunta curta e objetiva ao analista. Campo que só não foi \
+informado não é ambiguidade: deixe null, sem perguntar.
 
 Campo que o texto não sustenta fica null. Não decide crédito, não aprova, não infere permissões.
 

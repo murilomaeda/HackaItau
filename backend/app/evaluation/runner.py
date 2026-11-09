@@ -130,6 +130,11 @@ def prepare_fixture(source: Path, destination: Path, case: dict):
                         for cycle, delta in (("2022/23", -1), ("2023/24", 1), ("2024/25", 0))
                     ]
         dump(path, data)
+    if "remove_market" in case:
+        path = destination / "market_data.json"
+        data = json.loads(path.read_text())
+        data["records"] = [r for r in data["records"] if r["commodity"] != case["remove_market"]]
+        dump(path, data)
     path = destination / "documents.json"
     data = json.loads(path.read_text())
     data["records"] = [

@@ -320,6 +320,7 @@ class Toolbox:
 class DataRepository(Protocol):
     def get_client(self, client_id) -> dict | None
     def find_clients_exact(self, name_or_id) -> list[dict]     # usado só pelo Bootstrap Resolver; match exato normalizado, sem wildcard
+    def find_clients_by_partial_name(self, name) -> list[dict] # usado só pelo Bootstrap Resolver; palavras inteiras do nome, sem prefixo
     def get_financials(self, client_id) -> dict | None
     def get_agro_profile(self, client_id) -> dict | None
     def get_market_data(self, commodity) -> dict | None
@@ -348,10 +349,12 @@ class BootstrapClientResolver:
     def resolve(self, user: UserIdentity, client_ref: str) -> ResolveResult:
         # 1 só permissão do usuário; sem agente, sem scope
         if "client_profile" not in user.permissions_read: return ResolveResult.denied("resource_not_authorized_for_user")
-        # 2 entrada mínima: ID exato ou nome normalizado com tamanho mínimo; sem wildcard, sem prefixo, sem listagem
+        # 2 entrada mínima: ID exato, nome normalizado ou palavras inteiras do nome; sem wildcard, sem prefixo, sem listagem
         ref = normalize(client_ref)
         if not is_client_id(ref) and len(ref) < MIN_NAME_LEN:   return ResolveResult.not_found()
         matches = repo.find_clients_exact(ref)                    # match exato (id) ou igualdade de nome normalizado
+        if not matches and not is_client_id(ref):
+            matches = repo.find_clients_by_partial_name(ref)      # palavras inteiras, com pelo menos uma que distinga o cliente
         # 3 saída mínima
         if len(matches) == 0:  return ResolveResult.not_found()
         if len(matches) > 1:   return ResolveResult.ambiguous(count=len(matches))      # sem listar candidatos
@@ -362,6 +365,7 @@ Propriedades garantidas (e testadas):
 - usa **somente** a permissão do usuário (`client_profile:read`);
 - aceita nome ou ID; devolve **no máximo** `{client_id, name}` — nunca financials, agro, documentos, rating, campos `never`;
 - **não lista**: 0 → `not_found`, >1 → `ambiguous(count)` sem candidatos; nunca aceita `*`, prefixos ou strings curtas;
+- **nome parcial só em palavras inteiras**: "Horizonte" resolve para "Fazenda Horizonte S.A." se for único; "Fazenda" (palavra genérica), "Horiz" (prefixo) e "Fazenda Horizonte Agro" (palavra a mais) não resolvem. Decisão registrada: o analista escreve o nome de vários jeitos, e o escopo continua travado em um único cliente depois de resolvido;
 - não é uma tool: não está em `TOOL_REGISTRY`, não aparece em nenhum `AgentCard.tools`, não é alcançável após o `SCOPE_FROZEN`;
 - audita `BOOTSTRAP_RESOLVED{user_id, matched: bool, ambiguous: bool}` (sem ecoar o texto buscado quando `not_found`, para não registrar tentativas de enumeração com detalhe);
 - em `not_found`/`ambiguous` o case vai para `waiting_input`; o usuário fornece ID/nome exato; sem limite de tentativas no MVP, mas cada tentativa é auditada.

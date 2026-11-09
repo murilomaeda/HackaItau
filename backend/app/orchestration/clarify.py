@@ -8,9 +8,10 @@ nunca escopo: um cliente citado na resposta continua passando pelo Bootstrap Res
 import re
 from typing import Any
 
+from app.core.crops import expected_price_unit, normalize_crop
 from app.core.schemas.case import OpenQuestion
 from app.core.schemas.outputs import InterpretedDemand
-from app.orchestration.interpreter import heuristic_interpret, parse_amount
+from app.orchestration.interpreter import _fmt, heuristic_interpret, parse_amount
 
 REQUEST_KIND_LABEL = {
     "nova_operacao": "operação nova",
@@ -29,11 +30,21 @@ CONTEXT_LABEL = {
 }
 
 
+# O LLM às vezes registra como ambiguidade um campo só ausente ("Qual é a região?"). Isso não é dúvida de leitura, e as
+# perguntas padrão abaixo já cobrem o que importa. "O pedido é para X ou Y?" e "Confirme a cultura: ..." continuam.
+_MISSING_FIELD_QUESTION = re.compile(
+    r"^\s*(?:qual|quais|h[aá]|existe|existem)\b[^?]*\b"
+    r"(?:safra|regi[aã]o|[aá]rea|garantias?|prazo|cultura|tipo de opera[cç][aã]o|finalidade|valor)\b[^?]*\?\s*$",
+    re.IGNORECASE,
+)
+
+
 def open_questions(it: InterpretedDemand | None) -> list[OpenQuestion]:
     if it is None:
         return []
     qs: list[OpenQuestion] = [
-        OpenQuestion(key=f"confirmacao_{i + 1}", question=q, blocking=False) for i, q in enumerate(it.ambiguities)
+        OpenQuestion(key=f"confirmacao_{i + 1}", question=q, blocking=False)
+        for i, q in enumerate(a for a in it.ambiguities if not _MISSING_FIELD_QUESTION.search(a))
     ]
     if it.requested_amount is None:
         qs.append(OpenQuestion(key="requested_amount", question="Qual o valor que o cliente está pedindo?", blocking=True))
@@ -44,7 +55,8 @@ def open_questions(it: InterpretedDemand | None) -> list[OpenQuestion]:
             )
         )
     if it.crop is None or it.cycle is None:
-        qs.append(OpenQuestion(key="crop_cycle", question="Qual cultura e qual safra (por exemplo, soja 2025/26)?"))
+        ask = "Qual safra (por exemplo, 2026/27)?" if it.crop else "Qual cultura e qual safra (por exemplo, soja 2025/26)?"
+        qs.append(OpenQuestion(key="crop_cycle", question=ask))
     if it.request_kind is None:
         qs.append(
             OpenQuestion(
@@ -66,6 +78,50 @@ def open_questions(it: InterpretedDemand | None) -> list[OpenQuestion]:
             )
         )
     return qs
+
+
+def demand_warnings(
+    it: InterpretedDemand | None, profile_crop: str | None, market: dict[str, Any] | None, min_amount: float
+) -> list[OpenQuestion]:
+    """O que já se sabe que vai parar na Elegibilidade. Antecipa, não relaxa: a regra continua sendo do gate."""
+    if it is None:
+        return []
+    out: list[OpenQuestion] = []
+    crop = it.crop
+    if crop and profile_crop and normalize_crop(profile_crop) != normalize_crop(crop):
+        out.append(
+            OpenQuestion(
+                key="aviso_cultura",
+                question=f"A base de demonstração tem perfil de {profile_crop} para este cliente, não de {crop}. "
+                f"Assim, a análise para na Elegibilidade antes dos cálculos. A cultura é {crop} mesmo ou {profile_crop}?",
+            )
+        )
+    if crop and market is None:
+        out.append(
+            OpenQuestion(
+                key="aviso_mercado",
+                question=f"Não há cotação de {crop} na base de mercado da demonstração, e a análise não usa o preço de "
+                "outra cultura. Se rodar assim, ela para na Elegibilidade.",
+            )
+        )
+    elif crop and market is not None and market.get("unit") != expected_price_unit(crop):
+        out.append(
+            OpenQuestion(
+                key="aviso_mercado",
+                question=f"A cotação de {crop} está em {market.get('unit')}, e os cálculos usam "
+                f"{expected_price_unit(crop)}. "
+                "Se rodar assim, a análise para na Elegibilidade.",
+            )
+        )
+    if it.requested_amount is not None and it.requested_amount < min_amount:
+        out.append(
+            OpenQuestion(
+                key="aviso_ticket",
+                question=f"O valor de {_fmt('requested_amount', it.requested_amount)} está abaixo do ticket mínimo da "
+                f"política ({_fmt('requested_amount', min_amount)}). Confirme se o valor está certo.",
+            )
+        )
+    return out
 
 
 def context_from(h: InterpretedDemand) -> dict[str, Any]:

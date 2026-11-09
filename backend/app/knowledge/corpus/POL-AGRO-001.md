@@ -19,6 +19,6 @@ Diferença entre área declarada no plano de plantio e área do perfil agro supe
 ## Consistência de cultura no custeio
 - A cultura da demanda deve coincidir com o perfil agro e com a cultura identificada nos planos de plantio disponíveis.
 - Um plano sem cultura identificada nos dados extraídos exige esclarecimento na base documental; texto livre não substitui essa identificação.
-- É obrigatória uma referência de mercado para a mesma cultura. Na demonstração, a unidade da cotação é BRL/saca e a produtividade é medida em sacas/ha; outras unidades exigem adequação antes do cálculo.
+- É obrigatória uma referência de mercado para a mesma cultura. A cotação e a produtividade precisam estar na unidade da cultura (por exemplo, BRL/saca e sc/ha para soja, BRL/tonelada e t/ha para cana); outras unidades exigem adequação antes do cálculo.
 - Divergência ou ausência dessas informações bloqueia a análise antes dos cálculos. Não combinar produtividade e custos de uma cultura com preço de outra.
 - As culturas atendidas por cada produto são declaradas no catálogo (`supported_crops`); uma confirmação do usuário não altera essa restrição.

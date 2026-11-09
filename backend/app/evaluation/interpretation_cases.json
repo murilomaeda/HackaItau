@@ -1,5 +1,5 @@
 {
-  "version": "leitura-v1",
+  "version": "leitura-v2",
   "today": "2026-11-05",
   "note": "Pedidos fictícios escritos de jeitos diferentes. Gabarito por campo: valor esperado; null = o texto não diz, o sistema não pode inventar; \"?\" = ambíguo, vale null ou uma pergunta de confirmação. Cliente é comparado sem sufixo societário.",
   "cases": [
@@ -396,6 +396,138 @@
         "amount": 500000,
         "purpose": "custeio",
         "crop": "milho",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "sintoma-minusculas",
+      "text": "A fazenda horizonte quer 50 mil reais para o custeio da plantação de milho",
+      "gold": {
+        "client": "fazenda horizonte",
+        "amount": 50000,
+        "purpose": "custeio",
+        "crop": "milho",
+        "cycle": null
+      }
+    },
+    {
+      "id": "sintoma-sem-sufixo-acento",
+      "text": "a fazenda tres irmaos precisa de R$ 12 mi pra custear milho 26/27",
+      "gold": {
+        "client": "fazenda tres irmaos",
+        "amount": 12000000,
+        "purpose": "custeio",
+        "crop": "milho",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-cafe",
+      "text": "Fazenda Santa Clara pede 8 milhões de custeio de café, safra 2026/27",
+      "gold": {
+        "client": "fazenda santa clara",
+        "amount": 8000000,
+        "purpose": "custeio",
+        "crop": "cafe",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-trigo",
+      "text": "Agropecuária Santa Clara Ltda. quer R$ 3.000.000,00 para plantar trigo em 2026/27",
+      "gold": {
+        "client": "agropecuaria santa clara",
+        "amount": 3000000,
+        "purpose": "custeio",
+        "crop": "trigo",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-arroz-investimento",
+      "text": "Cooperativa Vale do Rio Verde solicita R$ 20 milhões para investimento em silos de arroz",
+      "gold": {
+        "client": "cooperativa vale do rio verde",
+        "amount": 20000000,
+        "purpose": "investimento",
+        "crop": "arroz",
+        "cycle": null
+      }
+    },
+    {
+      "id": "cultura-feijao-comercializacao",
+      "text": "Sítio Bom Jesus: 2 milhões para estocar feijão 2026/27",
+      "gold": {
+        "client": "sitio bom jesus",
+        "amount": 2000000,
+        "purpose": "comercializacao",
+        "crop": "feijao",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-laranja",
+      "text": "Fazenda Pomar do Sol pede R$ 6 milhões para custeio de laranja, colhe 500 mil caixas, safra 2026/27",
+      "gold": {
+        "client": "fazenda pomar do sol",
+        "amount": 6000000,
+        "purpose": "custeio",
+        "crop": "laranja",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-macaxeira",
+      "text": "Agropecuária Raiz Forte quer 3 mi pra plantar macaxeira 26/27",
+      "gold": {
+        "client": "agropecuaria raiz forte",
+        "amount": 3000000,
+        "purpose": "custeio",
+        "crop": "mandioca",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-cacau",
+      "text": "Fazenda Cabruca solicita R$ 4 milhões para custeio de cacau na safra 2026/27",
+      "gold": {
+        "client": "fazenda cabruca",
+        "amount": 4000000,
+        "purpose": "custeio",
+        "crop": "cacau",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-banana",
+      "text": "Sítio Recanto do Vale precisa de R$ 2 milhões para custeio do bananal 2026/27",
+      "gold": {
+        "client": "sitio recanto do vale",
+        "amount": 2000000,
+        "purpose": "custeio",
+        "crop": "banana",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-cana",
+      "text": "Usina Boa Esperança pede 20 milhões para custeio do canavial, safra 2026/27",
+      "gold": {
+        "client": "usina boa esperanca",
+        "amount": 20000000,
+        "purpose": "custeio",
+        "crop": "cana",
+        "cycle": "2026/27"
+      }
+    },
+    {
+      "id": "cultura-algodao",
+      "text": "Grupo Cerrado Verde S.A. solicita R$ 30 milhões para custeio de algodão 2026/27",
+      "gold": {
+        "client": "grupo cerrado verde",
+        "amount": 30000000,
+        "purpose": "custeio",
+        "crop": "algodao",
         "cycle": "2026/27"
       }
     }

@@ -179,9 +179,17 @@ def _structuring(ev: _Evidence) -> dict[str, Any]:
         ("Custeio com CPR financeira", "bullet_post_harvest", ["cpr_financeira", "seguro_agricola"], 12),
         ("Custeio em tranches com gatilhos", "two_installments_post_harvest", ["penhor_safra", "seguro_agricola"], 14),
     ]
+    # como um modelo que leu o catálogo: só produtos cuja faixa comporta o valor, no prazo e amortização deles
+    fitting = [
+        (sid, p) for sid, p in products if float(p.get("min_amount") or 0) <= amount <= float(p.get("max_amount") or amount)
+    ]
+    products = fitting if len(fitting) >= 2 else products
     alts = []
     for i, (name, amort, guarantees, tenor) in enumerate(templates, start=1):
         sid, prod = products[min(i - 1, len(products) - 1)] if products else ("", {})
+        tenor = min(max(tenor, prod.get("tenor_months_min", tenor)), prod.get("tenor_months_max", tenor))
+        options = prod.get("amortization_options") or [amort]
+        amort = amort if amort in options else options[0]
         alts.append(
             {
                 "id": f"ALT-{i}",

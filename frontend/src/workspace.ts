@@ -336,6 +336,9 @@ export function useWorkspace(userId: string) {
         } else if (reply.kind === 'case_reply') {
           updateBranch(conv.id, b.id, (x) => ({ ...x, inputs: [...x.inputs, text] }))
           await call(caseId, () => api.reply(caseId, text))
+        } else if (reply.kind === 'run_squad') {
+          local(userTurn(text, fileNames))
+          await call(caseId, () => api.run(caseId))
         } else if (reply.kind === 'credit_demand') {
           local(
             userTurn(text, fileNames),

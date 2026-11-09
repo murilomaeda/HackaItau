@@ -40,8 +40,8 @@ class AssumptionSetParams(BaseModel):
     """Premissas numéricas definidas por CÓDIGO (risk/baseline.py). Cada valor tem source_id."""
 
     planted_area_hectares: float
-    productivity: float  # sacas/ha
-    price: float  # R$/saca
+    productivity: float  # na unidade da cultura (core/crops.py): sc/ha, t/ha, cx/ha, @/ha
+    price: float  # R$ pela mesma unidade
     cost_per_hectare: float
     requested_amount: float
     net_debt: float

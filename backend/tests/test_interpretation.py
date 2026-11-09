@@ -183,12 +183,12 @@ async def test_user_text_is_wrapped_as_untrusted():
 
 
 def test_reading_benchmark_offline_baseline():
-    """O benchmark de leitura roda sem chave; a heurística não pode regredir abaixo do medido (29/36)."""
+    """O benchmark de leitura roda sem chave; a heurística não pode regredir abaixo do medido (41/48)."""
     import asyncio
 
     from app.evaluation.interpretation import load_cases, run
 
     data = load_cases()
-    assert len(data["cases"]) == 36 and len({c["id"] for c in data["cases"]}) == 36
+    assert len(data["cases"]) == 48 and len({c["id"] for c in data["cases"]}) == 48
     summary = asyncio.run(run(llm=False, repetitions=1, model=None))["heuristic"]["summary"]
-    assert summary["fully_correct"] >= 29
+    assert summary["fully_correct"] >= 41

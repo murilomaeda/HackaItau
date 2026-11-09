@@ -147,6 +147,9 @@ export type AssistKind =
   | 'capabilities'
   | 'out_of_scope'
   | 'clarify'
+  | 'info'
+  | 'no_data'
+  | 'run_squad'
 
 export interface AssistReply {
   kind: AssistKind

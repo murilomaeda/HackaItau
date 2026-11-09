@@ -51,6 +51,9 @@ export function assumptionValue(value: unknown, unit: string | null): string {
   if (unit === 'BRL') return brl(value)
   const n = value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   if (unit === 'BRL/saca') return `R$ ${n} por saca`
+  if (unit === 'BRL/tonelada') return `R$ ${n} por tonelada`
+  if (unit === 'BRL/caixa') return `R$ ${n} por caixa`
+  if (unit === 'BRL/arroba') return `R$ ${n} por arroba`
   if (unit === 'BRL/ha') return `R$ ${n} por hectare`
   return unit ? `${n} ${unit}` : n
 }

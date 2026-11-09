@@ -207,7 +207,7 @@ export function naturalQuestion(reason: string, items: string[]): { lead: string
   if (reason === 'client_ambiguous') {
     return {
       lead: 'Mais de um cliente combina com esse nome.',
-      asks: ['Qual deles? Me passe o código exato (por exemplo, CLIENTE-001).'],
+      asks: ['Qual deles? Me passe o nome completo da empresa ou o código dela (por exemplo, CLIENTE-001).'],
     }
   }
   const asks = items.map((item) => {

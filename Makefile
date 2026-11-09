@@ -62,6 +62,9 @@ benchmark:
 benchmark-leitura:
 	cd $(CURDIR)/backend && $(PY) -m app.evaluation.interpretation $(if $(LLM),--llm) $(ARGS)
 
+benchmark-conversa:
+	cd $(CURDIR)/backend && $(PY) -m app.evaluation.conversation
+
 benchmark-audit:
 	$(PY) -m app.evaluation.audit
 
