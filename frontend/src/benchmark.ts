@@ -49,34 +49,65 @@ export const costPerRun = (g: Group) => (cost(g) === null || !g.runs ? null : co
 export const casesOf = (g: Group) => g.cases ?? g.runs
 export const repetitionsOf = (g: Group) => g.repetitions ?? 1
 
+export interface SameModel {
+  squadPasses: number
+  squadRuns: number
+  generalistPasses: number
+  generalistRuns: number
+  models: string[] // nomes das configurações rodadas nas duas arquiteturas
+}
+
+// Mesmo modelo nas duas arquiteturas: soma as configurações em que as duas rodaram. Isola o efeito da arquitetura.
+export function sameModel(data: BenchmarkSummary): SameModel | null {
+  const out: SameModel = { squadPasses: 0, squadRuns: 0, generalistPasses: 0, generalistRuns: 0, models: [] }
+  for (const g of data.groups.filter((x) => x.architecture === 'squad')) {
+    const other = counterpart(data, g)
+    if (!other || !g.runs || !other.runs) continue
+    out.squadPasses += g.automatic_passes
+    out.squadRuns += g.runs
+    out.generalistPasses += other.automatic_passes
+    out.generalistRuns += other.runs
+    out.models.push(configName(g))
+  }
+  return out.models.length ? out : null
+}
+
 export interface Headline {
   squad: Group
-  generalist: Group
-  matched: boolean // o generalista chegou à mesma taxa de acerto da squad
-  costRatio: number | null // quantas vezes o generalista custou mais por execução
+  generalist: Group // o generalista com modelo de raciocínio que mais acertou
+  priciest: Group | null // o generalista mais caro por análise, para dar a faixa
+  costRatio: number | null // quantas vezes o generalista custou mais por análise
   timeRatio: number // quantas vezes o generalista demorou mais
 }
 
-// A squad mais barata entre as de maior acerto, contra o generalista mais barato que chega ao mesmo acerto.
-// Se nenhum generalista chega lá, compara com o generalista de maior acerto (e o texto diz que ele ficou abaixo).
+// A alternativa à squad é "usar um modelo maior". Compara a squad mais barata que acerta pelo menos tanto quanto o
+// melhor generalista com modelo de raciocínio (ou, sem modelos de raciocínio, quanto o melhor generalista).
 export function headline(data: BenchmarkSummary): Headline | null {
   const priced = data.groups.filter((g) => g.runs > 0 && cost(g) !== null)
-  const byQuality = (a: Group, b: Group) => passRate(b) - passRate(a) || costPerRun(a)! - costPerRun(b)!
-  const squad = priced.filter((g) => g.architecture === 'squad').sort(byQuality)[0]
-  if (!squad) return null
   const generalists = priced.filter((g) => g.architecture === 'generalist')
-  const matching = generalists.filter((g) => passRate(g) >= passRate(squad)).sort((a, b) => costPerRun(a)! - costPerRun(b)!)
-  const generalist = matching[0] ?? generalists.sort(byQuality)[0]
-  if (!generalist || !comparable(data, squad, generalist)) return null
+  const reasoning = generalists.filter((g) => g.reasoning_effort)
+  const pool = reasoning.length ? reasoning : generalists
+  const byQuality = (a: Group, b: Group) => passRate(b) - passRate(a) || costPerRun(a)! - costPerRun(b)!
+  const generalist = [...pool].sort(byQuality)[0]
+  if (!generalist) return null
+  const squad = priced
+    .filter((g) => g.architecture === 'squad' && passRate(g) >= passRate(generalist))
+    .sort((a, b) => costPerRun(a)! - costPerRun(b)!)[0]
+  if (!squad) return null
   const sc = costPerRun(squad)!
+  const priciest = [...pool].sort((a, b) => costPerRun(b)! - costPerRun(a)!)[0] ?? null
   return {
     squad,
     generalist,
-    matched: matching.length > 0,
+    priciest: priciest && priciest !== generalist ? priciest : null,
     costRatio: sc > 0 ? costPerRun(generalist)! / sc : null,
     timeRatio: squad.mean_latency_seconds > 0 ? generalist.mean_latency_seconds / squad.mean_latency_seconds : 0,
   }
 }
+
+// ordem dos gráficos: quem mais acerta primeiro; no empate, o mais barato
+export const byPassRate = (a: Group, b: Group) =>
+  passRate(b) - passRate(a) || (costPerRun(a) ?? Infinity) - (costPerRun(b) ?? Infinity)
 
 export function useBenchmark(refresh = 0) {
   const [data, setData] = useState<BenchmarkSummary | null>(null)
