@@ -117,12 +117,14 @@ def consumption(trace, spec):
 
 
 def prepare_fixture(source: Path, destination: Path, case: dict):
+    """Cópia temporária dos mocks com as variações do caso. Cada caso escolhe o cliente (padrão CLIENTE-001)."""
     shutil.copytree(source, destination)
+    client = case.get("client_id", "CLIENTE-001")
     for filename, updates in (("agro_profiles", case.get("profile", {})), ("financials", case.get("financials", {}))):
         path = destination / f"{filename}.json"
         data = json.loads(path.read_text())
         for row in data["records"]:
-            if row["client_id"] == "CLIENTE-001":
+            if row["client_id"] == client:
                 row.update(updates)
                 if filename == "agro_profiles" and "historical_productivity" in updates:
                     row["historical_productivity_series"] = [
@@ -130,13 +132,20 @@ def prepare_fixture(source: Path, destination: Path, case: dict):
                         for cycle, delta in (("2022/23", -1), ("2023/24", 1), ("2024/25", 0))
                     ]
         dump(path, data)
+    if "remove_market" in case or "market_update" in case:
+        path = destination / "market_data.json"
+        data = json.loads(path.read_text())
+        data["records"] = [r for r in data["records"] if r["commodity"] != case.get("remove_market")]
+        for row in data["records"]:
+            row.update(case.get("market_update", {}).get(row["commodity"], {}))
+        dump(path, data)
     path = destination / "documents.json"
     data = json.loads(path.read_text())
     data["records"] = [
-        r for r in data["records"] if not (r["client_id"] == "CLIENTE-001" and r["type"] == case.get("remove_document"))
+        r for r in data["records"] if not (r["client_id"] == client and r["type"] == case.get("remove_document"))
     ]
     for row in data["records"]:
-        if row["client_id"] == "CLIENTE-001" and row["type"] == "plano_de_plantio" and "plan_crop" in case:
+        if row["client_id"] == client and row["type"] == "plano_de_plantio" and "plan_crop" in case:
             crop = case["plan_crop"]
             row["extracted"]["crop"] = crop
             row["extracted"]["expected_productivity"] = case.get("profile", {}).get("expected_productivity", 61)
@@ -154,6 +163,7 @@ async def run_one(settings, fixture, case, architecture, spec, repetition, provi
             "llm_model": spec.model,
             "llm_max_retries": 0,
             "llm_timeout_seconds": spec.timeout_seconds,
+            "persistence": False,  # execuções do benchmark não entram nos cases da demonstração
         }
     )
     c = build_container(configured)
@@ -180,11 +190,12 @@ async def run_one(settings, fixture, case, architecture, spec, repetition, provi
             llm_mode="real",
         )
     # Benchmark do raciocínio: demanda estruturada idêntica, sem confundir interpretação com arquitetura.
+    client = case.get("client_id", "CLIENTE-001")
     demand = InterpretedDemand(
         intent="credito_agro",
-        client_ref="CLIENTE-001",
+        client_ref=client,
         requested_amount=case["amount"],
-        purpose="custeio",
+        purpose=case.get("purpose", "custeio"),
         crop=case["crop"],
         cycle="2026/27",
     )
@@ -195,7 +206,7 @@ async def run_one(settings, fixture, case, architecture, spec, repetition, provi
         demo_options=DemoOptions(adversarial_document=case.get("adversarial", False)),
     )
     rec.state.interpreted = demand
-    c.orchestrator._bootstrap(rec, c.orchestrator._user("analyst-001"), "CLIENTE-001")
+    c.orchestrator._bootstrap(rec, c.orchestrator._user("analyst-001"), client)
     start = time.monotonic()
     await c.orchestrator.run(rec.state.case_id)
     duration = time.monotonic() - start

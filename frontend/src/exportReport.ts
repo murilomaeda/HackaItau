@@ -67,7 +67,7 @@ export async function buildReportHtml(
 <body>
 <div class="export-page">
 ${doc.outerHTML}
-<p class="export-meta">Case ${escape(meta.caseId)} · exportado em ${escape(when)} · ambiente de demonstração com dados fictícios. Não representa aprovação de crédito; a decisão é do analista.</p>
+<p class="export-meta">Análise ${escape(meta.caseId)} · exportada em ${escape(when)} · ambiente de demonstração com dados fictícios. Não é aprovação de crédito; a decisão é do analista.</p>
 </div>
 </body>
 </html>`

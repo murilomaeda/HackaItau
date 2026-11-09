@@ -2,7 +2,7 @@
   "agent_id": "credit_review",
   "name": "Credit Review / Red Team Agent",
   "version": "0.1.0",
-  "description": "Revisão crítica: validators determinísticos (código) + red team qualitativo (LLM) sobre os outputs compactos dos demais agentes. Não acessa dados brutos.",
+  "description": "Relê o trabalho dos outros três antes do relatório. Regras fixas checam contas que não batem, premissa acima do histórico sem justificativa, limites da política, produto ou prazo fora do catálogo e referências inexistentes; o modelo procura riscos ignorados e incoerências. Um problema grave devolve a tarefa ao responsável, uma vez por análise.",
   "capabilities": ["credit_review"],
   "tools": ["search_policy"],
   "allowed_data_domains": ["knowledge"],

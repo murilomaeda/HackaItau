@@ -67,6 +67,18 @@ class ScenarioResult(BaseModel):
 class RiskLLMOutput(BaseModel):
     """O que o LLM devolve no Risk: só texto/qualitativo. Nenhum número material."""
 
+    repayment_thesis: str = Field(
+        default="",
+        description="De onde sai o dinheiro para pagar e o que precisa dar certo, em 2 a 4 frases, específico do caso",
+    )
+    critical_assumptions: list[EvidencedItem] = Field(
+        default_factory=list,
+        description="Premissas que, se falharem, quebram o pagamento; cite o break_even do CALC de stress",
+    )
+    questions_for_analyst: list[str] = Field(
+        default_factory=list,
+        description="Perguntas de diligência que mudariam a leitura do risco (ao cliente ou a outra área)",
+    )
     risk_narrative: str
     main_risks: list[EvidencedItem]
     mitigants: list[EvidencedItem] = Field(default_factory=list)
@@ -168,6 +180,32 @@ class InterpretedDemand(BaseModel):
     guarantees: list[str] = Field(default_factory=list)
     region: str | None = None
     area_hectares: float | None = None
+    # como o pedido foi lido (texto curto, para o analista conferir) e o que ficou ambíguo e vale confirmar
+    reasoning: str = ""
+    ambiguities: list[str] = Field(default_factory=list)
+
+
+Purpose = Literal["custeio", "investimento", "comercializacao", "industrializacao"]
+RequestKind = Literal["nova_operacao", "renovacao", "aumento_de_limite"]
+
+
+class DemandReading(BaseModel):
+    """O que o LLM devolve ao ler um pedido em linguagem natural. Proposta: o código valida cada campo."""
+
+    reasoning: str = Field(description="Passo a passo curto: de onde saiu cada campo e o que foi deduzido")
+    client_ref: str | None = Field(description="Nome ou código do cliente exatamente como aparece no texto")
+    requested_amount: float | None = Field(description="Valor pedido em reais, número absoluto")
+    purpose: Purpose | None = None
+    crop: str | None = Field(default=None, description="Cultura, minúscula e sem acento (soja, milho, algodao, cafe...)")
+    cycle: str | None = Field(default=None, description="Safra no formato AAAA/AA, ex.: 2025/26")
+    request_kind: RequestKind | None = None
+    tenor_months: int | None = None
+    guarantees: list[str] = Field(default_factory=list)
+    region: str | None = None
+    area_hectares: float | None = None
+    ambiguities: list[str] = Field(
+        default_factory=list, description="Pontos que admitem mais de uma leitura, como pergunta curta ao analista"
+    )
 
 
 OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
@@ -178,6 +216,7 @@ OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
     "AIReviewOutput": AIReviewOutput,
     "ReviewOutput": ReviewOutput,
     "InterpretedDemand": InterpretedDemand,
+    "DemandReading": DemandReading,
 }
 
 

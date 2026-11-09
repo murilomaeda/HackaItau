@@ -1,5 +1,6 @@
 # PLAYBOOK-RISK-001 — Passos da análise de risco agro (mock)
 
+## Passos da análise de risco
 1. Confirmar cultura, área plantada, ciclo e região.
 2. Obter produtividade esperada e histórica; registrar divergências como premissa a ser justificada.
 3. Usar preço de referência da commodity fornecido pela área de mercado.

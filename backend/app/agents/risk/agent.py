@@ -99,13 +99,23 @@ class RiskAgent(BaseAgent):
 
         warnings: list[str] = []
         stated = _NUM_RE.findall(_all_text(llm))
-        known = {f"{v:.2f}".replace(".", ",") for v in (mo["coverage"], mo["pro_forma_leverage"], mo["net_debt_ebitda"])}
-        known |= {f"{v:.1f}".replace(".", ",") for v in (mo["coverage"], mo["pro_forma_leverage"], mo["net_debt_ebitda"])}
+        # números que o texto pode citar: indicadores do caso base, cobertura de cada cenário e limites da política
+        values = [mo["coverage"], mo["pro_forma_leverage"], mo["net_debt_ebitda"], *(sc.coverage for sc in scenarios)]
+        values += [
+            thresholds.coverage.comfortable_min,
+            thresholds.coverage.reduced_buffer_min,
+            thresholds.coverage.attention_required_min,
+            thresholds.net_debt_ebitda_max,
+            thresholds.pro_forma_leverage_max,
+        ]
+        known = {f"{v:.{d}f}".replace(".", ",") for v in values for d in (2, 1)}
         known |= {k.replace(",", ".") for k in known}
         for tok in stated:
             num = tok.lower().rstrip("x").strip()
             if num not in known:
                 warnings.append(f"numero_no_texto_divergente_do_calc:{tok.strip()}")
+        if not llm.repayment_thesis.strip():
+            warnings.append("tese_de_pagamento_ausente")
 
         output = RiskOutput(
             **llm.model_dump(),
@@ -132,7 +142,7 @@ def _calc(evidence: EvidenceBundle, name: str) -> CalculationRecord:
 
 
 def _all_text(llm: RiskLLMOutput) -> str:
-    parts = [llm.risk_narrative]
-    for group in (llm.main_risks, llm.mitigants, llm.qualitative_assumptions, llm.uncertainties):
+    parts = [llm.repayment_thesis, llm.risk_narrative]
+    for group in (llm.critical_assumptions, llm.main_risks, llm.mitigants, llm.qualitative_assumptions, llm.uncertainties):
         parts.extend(i.message for i in group)
     return " ".join(parts)

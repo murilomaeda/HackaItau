@@ -1,11 +1,11 @@
-// Tela de entrada da demo: login (ID + senha fictícios) e, rolando, um diagrama de como a squad trabalha
+// Tela de entrada da demo: login (contas de demonstração, senha conferida pelo backend) e, rolando, um diagrama de como a squad trabalha
 // e o comparativo com um agente generalista.
 // A senha nunca sai deste componente: o ID é conferido contra as identidades fictícias do backend (GET, sem credenciais).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { api } from '../api'
+import { ApiError, api } from '../api'
 import { ART, ART_CREDIT, PRODUCT } from '../brand'
 import '../landing.css'
-import type { Identity } from '../types'
+import type { Identity, LoginReply } from '../types'
 import { AsciiField } from './AsciiField'
 import { Comparison } from './Comparison'
 import { HowItWorks } from './HowItWorks'
@@ -44,15 +44,11 @@ function glideTo(target: HTMLElement) {
   frame = requestAnimationFrame(step)
 }
 
-// senha de mentira para o preenchimento da demo: só enfeita o campo, nunca é conferida nem enviada
-function fakePassword(): string {
-  const abc = 'abcdefghjkmnpqrstuvwxyz23456789'
-  const n = crypto.getRandomValues(new Uint8Array(8))
-  return Array.from(n, (v) => abc[v % abc.length]).join('')
-}
+// senha das contas de demonstração (governance/identities.json); o backend só aceita com DEMO_MODE ligado
+const DEMO_PASSWORD = 'atena-demo'
 
 // `from`: centro do botão Entrar, de onde a área de trabalho se abre na animação de entrada
-export type SignIn = (u: Identity, from?: { x: number; y: number }) => void
+export type SignIn = (session: LoginReply, from?: { x: number; y: number }) => void
 
 export function Landing({ onSignIn }: { onSignIn: SignIn }) {
   const enterBtn = useRef<HTMLButtonElement>(null)
@@ -81,7 +77,7 @@ export function Landing({ onSignIn }: { onSignIn: SignIn }) {
   const fillDemo = async (id: string) => {
     const run = ++typing.current
     const live = () => run === typing.current
-    const pw = fakePassword()
+    const pw = DEMO_PASSWORD
     setError(null)
     setReady(false)
     if (reducedMotion()) {
@@ -120,21 +116,21 @@ export function Landing({ onSignIn }: { onSignIn: SignIn }) {
       setError('Informe o ID de usuário.')
       return
     }
+    if (!password) {
+      setError('Informe a senha.')
+      return
+    }
     setError(null)
     setBusy(true)
     try {
-      const list = users ?? (await api.identities())
-      setUsers(list)
-      const found = list.find((u) => u.user_id === userId.trim().toLowerCase())
-      if (found) {
-        setPassword('')
-        const r = enterBtn.current?.getBoundingClientRect()
-        onSignIn(found, r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : undefined)
-      } else {
-        setError(`ID não encontrado. Na demo, use ${list.map((u) => u.user_id).join(' ou ')}.`)
-      }
-    } catch {
-      setError('Não foi possível falar com o servidor. Ele está rodando?')
+      const reply = await api.login(userId.trim().toLowerCase(), password)
+      setPassword('')
+      const r = enterBtn.current?.getBoundingClientRect()
+      onSignIn(reply, r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : undefined)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) setError('Usuário ou senha incorretos.')
+      else if (e instanceof ApiError && e.status === 429) setError(e.message.replace(/^m/, 'M') + '.')
+      else setError('Não foi possível falar com o servidor. Ele está rodando?')
     } finally {
       setBusy(false)
     }
@@ -185,6 +181,7 @@ export function Landing({ onSignIn }: { onSignIn: SignIn }) {
                     </button>
                   </span>
                 ))}
+                {' '}· senha <span className="mono">{DEMO_PASSWORD}</span>
               </p>
             )}
             <label className="l-field">

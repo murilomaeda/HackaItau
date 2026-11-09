@@ -1,21 +1,36 @@
 import json
+import os
 from pathlib import Path
 
-import pytest
+# testes não gravam em var/: cada um que precisa de banco cria o seu (tmp_path)
+os.environ.setdefault("PERSISTENCE", "false")
 
-from app.config import get_settings
-from app.core.events import EventLog
-from app.core.evidence import EvidenceRegistry
-from app.core.schemas.context import CaseScope, ExecutionContext, UserIdentity
-from app.data.json_repository import JsonMockRepository
-from app.governance.loader import load_agent_cards, load_identities
-from app.knowledge.retriever import KeywordKnowledgeRetriever
-from app.tools.calc_tools import install_calc_handlers
-from app.tools.data_tools import install_data_handlers
-from app.tools.deps import ToolDeps
-from app.tools.gateway import Toolbox
+import pytest  # noqa: E402
+
+from app.config import get_settings  # noqa: E402
+from app.core.events import EventLog  # noqa: E402
+from app.core.evidence import EvidenceRegistry  # noqa: E402
+from app.core.schemas.context import CaseScope, ExecutionContext, UserIdentity  # noqa: E402
+from app.data.json_repository import JsonMockRepository  # noqa: E402
+from app.governance.loader import load_agent_cards, load_identities  # noqa: E402
+from app.knowledge.retriever import KeywordKnowledgeRetriever  # noqa: E402
+from app.tools.calc_tools import install_calc_handlers  # noqa: E402
+from app.tools.data_tools import install_data_handlers  # noqa: E402
+from app.tools.deps import ToolDeps  # noqa: E402
+from app.tools.gateway import Toolbox  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
+DEMO_PASSWORD = "atena-demo"  # senha de demonstração (governance/identities.json, só com DEMO_MODE)
+
+
+def login(client, user_id: str = "analyst-001"):
+    """Faz login pela API e deixa o token nos headers do TestClient. Devolve o próprio client."""
+    r = client.post("/api/auth/login", json={"user_id": user_id, "password": DEMO_PASSWORD})
+    assert r.status_code == 200, r.text
+    client.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
+    return client
+
+
 PURPOSE = "credit_analysis_agro"
 
 

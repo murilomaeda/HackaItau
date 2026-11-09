@@ -19,9 +19,9 @@ const STATUS_TEXT: Record<AgentRun['status'], string> = {
 }
 
 const PHASE_TITLE: Record<ActivityBlock['phase'], [string, string]> = {
-  execution: ['A squad está analisando a demanda', 'A squad concluiu a análise'],
-  human_adjustment: ['A squad está aplicando o seu ajuste', 'A squad aplicou o seu ajuste'],
-  retry: ['A squad está retomando o trabalho', 'A squad retomou e concluiu o trabalho'],
+  execution: ['Analisando o pedido', 'Análise concluída'],
+  human_adjustment: ['Aplicando o seu ajuste', 'Ajuste aplicado'],
+  retry: ['Retomando de onde parou', 'Análise retomada e concluída'],
 }
 
 interface Props {
@@ -41,20 +41,20 @@ export function SquadActivity({ block, state }: Props) {
 
   const title =
     block.status === 'failed'
-      ? `A squad parou em ${agentName(block.failedAgent)}`
+      ? `A análise parou em ${agentName(block.failedAgent)}`
       : block.status === 'blocked'
-        ? 'A squad precisa de uma informação para continuar'
+        ? 'Falta uma informação para continuar'
         : PHASE_TITLE[block.phase][running ? 0 : 1]
 
   const meta = [
-    `${block.order.length} agentes em ${teams.length} ${teams.length === 1 ? 'time' : 'times'}`,
-    `${block.toolCalls} acessos autorizados`,
+    `${block.order.length} agentes`,
+    `${block.toolCalls} consultas a dados`,
     reworks ? `${reworks} retrabalho${reworks > 1 ? 's' : ''}` : null,
     elapsed,
   ].filter(Boolean)
 
   return (
-    <section className={`squad ${block.status}`} aria-label="Trabalho da squad">
+    <section className={`squad ${block.status}`} aria-label="Andamento da análise">
       <button type="button" className="squad-head" onClick={() => setOpen(!expanded)} aria-expanded={expanded}>
         <OrchestratorMark live={running} size={24} />
         <span className="squad-title">
@@ -220,10 +220,10 @@ function agentHeadline(agentId: string, output: Record<string, unknown> | null):
     return `Status: ${ELIGIBILITY_LABEL[String(output.status)] ?? String(output.status)}`
   }
   if (agentId === 'agro_credit_risk' && Array.isArray(output.main_risks)) {
-    return `${output.main_risks.length} riscos principais, sobre métricas calculadas por código`
+    return `${output.main_risks.length} riscos principais`
   }
   if (agentId === 'agro_structuring' && Array.isArray(output.alternatives)) {
-    return `${output.alternatives.length} estruturas comparáveis, sem preferência do sistema`
+    return `${output.alternatives.length} formas de estruturar, sem ordem de preferência`
   }
   if (agentId === REVIEW && typeof output.overall_assessment === 'string') return output.overall_assessment
   return null

@@ -1,3 +1,4 @@
+import { terms } from '../humanize'
 import {
   Ban,
   BookOpen,
@@ -133,16 +134,27 @@ const brlShort = (v: number) =>
 
 // "Entendi o pedido assim": tudo que a leitura da demanda encontrou, o que o analista acrescentou e o que ainda
 // mudaria a análise. As perguntas só aparecem enquanto a squad ainda não rodou.
+const PURPOSE_LABEL: Record<string, string> = {
+  custeio: 'custeio',
+  investimento: 'investimento',
+  comercializacao: 'comercialização',
+}
+const REQUEST_KIND_LABEL: Record<string, string> = {
+  nova_operacao: 'operação nova',
+  renovacao: 'renovação',
+  aumento_de_limite: 'aumento de limite',
+}
+
 function UnderstandingView({ state }: { state: CaseState }) {
   const it = state.interpreted!
   const facts: Array<[string, string]> = []
   if (it.client_ref) facts.push(['Cliente', it.client_ref + (state.scope ? ` (${state.scope.client_ids.join(', ')})` : '')])
   if (it.requested_amount) facts.push(['Valor', brlShort(it.requested_amount)])
-  if (it.purpose) facts.push(['Finalidade', it.purpose])
+  if (it.purpose) facts.push(['Finalidade', PURPOSE_LABEL[it.purpose] ?? it.purpose])
   if (it.crop || it.cycle) facts.push(['Cultura e safra', [it.crop, it.cycle].filter(Boolean).join(' ')])
-  if (it.request_kind) facts.push(['Tipo de operação', it.request_kind.replace(/_/g, ' ')])
+  if (it.request_kind) facts.push(['Tipo de operação', REQUEST_KIND_LABEL[it.request_kind] ?? it.request_kind.replace(/_/g, ' ')])
   if (it.tenor_months) facts.push(['Prazo desejado', `${it.tenor_months} meses`])
-  if (it.guarantees.length) facts.push(['Garantias oferecidas', it.guarantees.join(', ')])
+  if (it.guarantees.length) facts.push(['Garantias oferecidas', terms(it.guarantees)])
   if (it.region) facts.push(['Região', it.region])
   if (it.area_hectares) facts.push(['Área', `${it.area_hectares.toLocaleString('pt-BR')} ha`])
   const notes = state.analyst_context['Observações']
@@ -196,7 +208,7 @@ function QuestionView({ state, active }: { state: CaseState | null; active: bool
           ))}
         </ul>
       )}
-      {active && <p className="small muted">Responda aqui mesmo, do seu jeito. Nada do que você escrever muda o escopo.</p>}
+      {active && <p className="small muted">Responda aqui mesmo, do seu jeito.</p>}
     </div>
   )
 }
@@ -218,7 +230,7 @@ function AckView({
   onRun: () => void
 }) {
   if (source === 'attachment') {
-    return <p className="prose">O documento anexado cumpre o que faltava. Já dá para rodar a squad de novo.</p>
+    return <p className="prose">O documento anexado resolve o que faltava. Já dá para rodar a análise de novo.</p>
   }
   const labels = keys.filter((k) => k !== 'observacoes_do_analista').map((k) => CONTEXT_KEY_LABEL[k] ?? k.replace(/_/g, ' '))
   return (
@@ -231,7 +243,7 @@ function AckView({
         <div className="plan-actions">
           <button type="button" className="btn primary" disabled={busy} onClick={onRun}>
             <Play size={15} />
-            Executar squad
+            Rodar análise
           </button>
           <span className="muted small">Ou continue acrescentando contexto.</span>
         </div>
@@ -315,7 +327,7 @@ function PlanView({
           <div className="plan-actions">
             <button type="button" className="btn primary" disabled={busy} onClick={onRun}>
               <Play size={15} />
-              Executar squad de novo
+              Rodar análise de novo
             </button>
           </div>
         )}
@@ -325,8 +337,7 @@ function PlanView({
   return (
     <div className="plan">
       <p className="prose">
-        Montei uma squad com {agents.length} agentes em {teams.length} {teams.length === 1 ? 'time' : 'times'}. Cada um recebe
-        só os dados que a sua tarefa exige.
+        {agents.length} agentes vão trabalhar nesta análise, e cada um vê só os dados de que precisa.
       </p>
       {canRun &&
         teams.map((team) => (
@@ -350,9 +361,8 @@ function PlanView({
         <div className="plan-actions">
           <button type="button" className="btn primary" disabled={busy} onClick={onRun}>
             <Play size={15} />
-            Executar squad
+            Rodar análise
           </button>
-          <span className="muted small">Os dados são coletados por código autorizado; o modelo não chama ferramentas.</span>
         </div>
       )}
     </div>
@@ -416,7 +426,7 @@ function AnswerView({
         </ul>
       )}
       <p className="prose">
-        {report.alternatives.length} opções de estrutura para você comparar, sem preferência do sistema:
+        {report.alternatives.length} opções de estrutura para você comparar, sem ordem de preferência:
       </p>
       <OptionCards
         alternatives={report.alternatives}
@@ -435,9 +445,9 @@ function AnswerView({
         </span>
         <ChevronRight size={18} className="artifact-go" />
       </button>
-      <p className="small muted">Análise gerada para suporte à decisão. Não representa aprovação de crédito.</p>
+      <p className="small muted">Documento de apoio à decisão. Não é aprovação de crédito.</p>
       {awaitingDecision && (
-        <p className="prose">A decisão é sua: aprove para a próxima etapa ou descreva um ajuste para a squad.</p>
+        <p className="prose">A decisão é sua: aprove para a próxima etapa ou diga o que ajustar.</p>
       )}
       <div className="msg-actions">
         <button type="button" className="icon-btn" onClick={copy} title="Copiar resumo" aria-label="Copiar resumo">
@@ -450,7 +460,7 @@ function AnswerView({
             className="icon-btn"
             onClick={actions.onRegenerate}
             disabled={actions.busy}
-            title="Rodar a squad de novo, numa nova versão desta conversa"
+            title="Rodar a análise de novo, numa nova versão desta conversa"
             aria-label="Gerar de novo"
           >
             <RotateCcw size={15} />
@@ -468,7 +478,7 @@ function describeError(error: string): { where: string | null; text: string } {
   if (detail.includes('429')) {
     return { where, text: 'O provedor do modelo recusou por limite de requisições (HTTP 429). Espere um minuto e tente de novo.' }
   }
-  if (detail.includes('llm_unconfigured')) return { where, text: 'O modelo não está configurado: defina LLM_API_KEY no .env e reinicie o backend.' }
+  if (detail.includes('llm_unconfigured')) return { where, text: 'Falta configurar o acesso ao modelo de linguagem: defina LLM_API_KEY no .env e reinicie o servidor.' }
   if (error === 'user_not_authorized_to_resolve_client') {
     return { where: null, text: 'Você não tem permissão para consultar este cliente. Nada foi executado.' }
   }

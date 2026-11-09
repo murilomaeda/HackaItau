@@ -61,6 +61,8 @@ def _risk_compact(results: dict[str, AgentResult]) -> dict[str, Any]:
             {"scenario_id": s.scenario_id, "label": s.label, "coverage": s.coverage, "classification": s.classification}
             for s in ro.stress_scenarios
         ],
+        "repayment_thesis": ro.repayment_thesis,
+        "critical_assumptions": [i.model_dump() for i in ro.critical_assumptions],
         "main_risks": [i.model_dump() for i in ro.main_risks],
         "mitigants": [i.model_dump() for i in ro.mitigants],
         "output_id": r.output_id,

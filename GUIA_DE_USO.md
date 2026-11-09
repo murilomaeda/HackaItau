@@ -20,7 +20,7 @@ O fluxo atende à preparação de uma análise por um analista de crédito ou ge
 | Conferir de onde veio uma conclusão | Acesso às evidências citadas, aos cálculos e ao histórico de execução. |
 | Pedir uma nova avaliação | Ajustes direcionados a um especialista, seguidos da atualização dos trabalhos dependentes e de nova revisão. |
 
-A interface usa a identidade fictícia `analyst-001`. O fluxo atual é voltado a crédito agro, com um catálogo de produtos de custeio e um caso principal de soja.
+Para entrar, use uma das contas de demonstração (`analyst-001` ou `manager-001`) com a senha `atena-demo`; elas só funcionam com `DEMO_MODE=true`. O backend confere a senha e devolve uma sessão de 8 horas. Os cases ficam guardados em `var/atena.db` e continuam lá depois de reiniciar o servidor. O fluxo atual é voltado a crédito agro, com um catálogo de produtos de custeio e um caso principal de soja.
 
 ## 2. Como rodar localmente
 

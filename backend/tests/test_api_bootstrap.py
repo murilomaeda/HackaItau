@@ -7,13 +7,14 @@ from app.config import Settings
 from app.container import build_container, get_container
 from app.main import app
 from app.orchestration.interpreter import heuristic_interpret
+from tests.conftest import login
 
 PROMPT = "O cliente Fazenda Horizonte S.A. solicita R$ 50 milhões para custeio da safra de soja 2026/27."
 
 
 @pytest.fixture(scope="module")
 def client():
-    return TestClient(app)
+    return login(TestClient(app))
 
 
 @pytest.mark.parametrize(
@@ -71,7 +72,7 @@ def test_run_refused_without_llm_and_state_guarded():
     container = build_container(Settings(llm_api_key="", _env_file=None))
     app.dependency_overrides[get_container] = lambda: container
     try:
-        client = TestClient(app)
+        client = login(TestClient(app))
         assert client.get("/api/health").json()["llm_mode"] == "unconfigured"
         r = client.post("/api/cases", json={"user_id": "analyst-001", "prompt": PROMPT})
         cid = r.json()["case_id"]

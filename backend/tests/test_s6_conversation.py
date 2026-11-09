@@ -17,6 +17,7 @@ from app.main import app
 from app.orchestration.assist import assist
 from app.orchestration.interpreter import heuristic_interpret
 from app.orchestration.orchestrator import OrchestratorError
+from tests.conftest import login
 from tests.fake_llm import StubProvider
 
 PROMPT = "O cliente Fazenda Horizonte S.A. solicita R$ 50 milhões para custeio da safra de soja 2025/26."
@@ -249,7 +250,7 @@ async def test_metrics_measure_hits_errors_and_context():
 def client():
     container = _container()
     app.dependency_overrides[get_container] = lambda: container
-    with TestClient(app) as c:
+    with login(TestClient(app)) as c:
         yield c
     app.dependency_overrides.clear()
 

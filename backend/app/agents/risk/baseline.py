@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.calculations.policy_params import Thresholds
-from app.core.crops import normalize_crop
+from app.core.crops import expected_price_unit, normalize_crop, productivity_unit
 from app.core.schemas.agent import Assumption
 from app.core.schemas.evidence import EvidenceBundle, SourceRecord
 from app.tools.registry import AssumptionSetParams
@@ -51,8 +51,11 @@ def build_baseline(
     crop = normalize_crop(requested_crop if requested_crop is not None else a.get("crop"))
     if not crop or normalize_crop(a.get("crop")) != crop or normalize_crop(m.get("commodity")) != crop:
         raise BaselineError("cultura da demanda, perfil agro e cotação de mercado precisam coincidir")
-    if m.get("unit") != "BRL/saca":
-        raise BaselineError("cotação incompatível com produtividade em sacas/ha: unidade esperada BRL/saca")
+    prod_unit = productivity_unit(crop)
+    if m.get("unit") != expected_price_unit(crop):
+        raise BaselineError(
+            f"cotação incompatível com produtividade em {prod_unit}: unidade esperada {expected_price_unit(crop)}"
+        )
 
     expected = float(a["expected_productivity"])
     historical = float(a["historical_productivity"]) if a.get("historical_productivity") is not None else None
@@ -66,7 +69,7 @@ def build_baseline(
             raise BaselineError("baseline historical solicitado sem historical_productivity na fonte")
         productivity = historical
         prod_just = (
-            f"POL-CRED-002: produtividade declarada {expected:g} sc/ha acima do histórico {historical:g} sc/ha, "
+            f"POL-CRED-002: produtividade declarada {expected:g} {prod_unit} acima do histórico {historical:g} {prod_unit}, "
             "sem justificativa documental validada. Histórico adotado preventivamente antes da análise."
             if automatic
             else "Baseline histórico (média das últimas safras) adotado por instrução de rework do Review."
@@ -82,7 +85,7 @@ def build_baseline(
 
     assumptions = [
         asm("planted_area_hectares", float(a["planted_area_hectares"]), "ha", agro),
-        asm("productivity", productivity, "sc/ha", agro, prod_just),
+        asm("productivity", productivity, prod_unit, agro, prod_just),
         asm("price", float(m["reference_price"]), m.get("unit"), market),
         asm("cost_per_hectare", float(a["cost_per_hectare"]), "BRL/ha", agro),
         asm("requested_amount", float(requested_amount), "BRL", None, "Valor solicitado na demanda do case."),

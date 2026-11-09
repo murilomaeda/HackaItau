@@ -48,7 +48,7 @@ export function DecisionBar({ userId, busy, onApprove }: Props) {
     <div className="decision" role="group" aria-label="Decisão humana">
       <Scale size={18} />
       <p className="decision-text">
-        <strong>A decisão é sua.</strong> Aprove a análise ou descreva abaixo um ajuste para a squad.
+        <strong>A decisão é sua.</strong> Aprove a análise ou descreva abaixo o que ajustar.
       </p>
       <button type="button" className="btn primary" onClick={() => setConfirming(true)} disabled={busy}>
         <CircleCheck size={15} />

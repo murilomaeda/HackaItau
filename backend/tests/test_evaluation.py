@@ -19,6 +19,7 @@ from app.evaluation.scoring import HumanReview, load_reviews, summarize
 from app.llm.openai_compat import LLMError, OpenAICompatProvider
 from app.llm.prompting import extract_json
 from app.llm.provider import LLMResponse, Message
+from tests.conftest import login
 from tests.fake_llm import StubProvider, _ai_review, _eligibility, _Evidence, _risk, _structuring
 
 
@@ -259,7 +260,7 @@ def test_latest_benchmark_endpoint_is_read_only_and_handles_empty_or_invalid_fil
     )
     app.dependency_overrides[get_container] = lambda: c
     try:
-        with TestClient(app) as client:
+        with login(TestClient(app)) as client:
             assert client.get("/api/benchmarks/latest").json() == {"benchmark": None}
             older = tmp_path / "20260101"
             older.mkdir()
@@ -283,10 +284,10 @@ def test_published_benchmark_is_available_without_local_runs_and_local_results_t
     c = build_container(Settings(llm_api_key="", benchmark_results_dir=tmp_path / "absent", _env_file=None))
     app.dependency_overrides[get_container] = lambda: c
     try:
-        with TestClient(app) as client:
+        with login(TestClient(app)) as client:
             published = client.get("/api/benchmarks/latest").json()["benchmark"]
             assert published["published_snapshot"] is True
-            assert published["completed_runs"] == 48
+            assert published["completed_runs"] == 230
             assert len(published["groups"]) == 6
             assert published["quality_status"] == "pending_human_review"
             local_dir = c.settings.benchmark_results_dir / "20260928"
@@ -299,3 +300,71 @@ def test_published_benchmark_is_available_without_local_runs_and_local_results_t
             assert len(c.store) == 0
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize(
+    "case_id",
+    [
+        "milho-cobertura-baixa",
+        "algodao-arroba",
+        "cana-tonelada",
+        "laranja-caixa",
+        "produtividade-otimista",
+        "sem-balanco",
+        "abaixo-do-ticket",
+        "unidade-incompativel",
+        "investimento-sem-projeto",
+        "comercializacao-sem-contratos",
+    ],
+)
+async def test_new_cases_reach_their_expected_outcome_offline(tmp_path, case_id):
+    """Os gabaritos dos casos novos batem com o código; o que varia numa execução real é só o modelo."""
+    settings = Settings(llm_api_key="sk-test-0123456789", _env_file=None)
+    case = load_cases(case_id)[0]
+    prepare_fixture(settings.mock_data_dir, tmp_path / "mock", case)
+    result = await run_one(settings, tmp_path / "mock", case, "squad", spec(), 1, provider=BothProvider())
+    assert result["status"] == case["expected_status"], result["error"]
+    if case["expected_status"] == "waiting_input":
+        assert result["automatic"]["checks"]["required_missing_items"]
+    else:
+        assert result["automatic"]["checks"]["expected_baseline"]
+
+
+async def test_publish_rebuilds_measurements_that_the_auditor_accepts(tmp_path):
+    from app.evaluation.publish import build
+    from app.evaluation.runner import dump, persist_reports
+
+    settings = Settings(llm_api_key="sk-test-0123456789", _env_file=None)
+    run_dir = tmp_path / "run"
+    (run_dir / "traces").mkdir(parents=True)
+    cases = load_cases("soja-base,sem-balanco")
+    schedule = [[c["id"], a, "test", 1] for c in cases for a in ("squad", "generalist")]
+    manifest = {
+        "created_at": "2026-11-09T00:00:00+00:00",
+        "planned_runs": len(schedule),
+        "app_sha256": "x",
+        "cases": cases,
+        "models": [spec().model_dump()],
+        "schedule": schedule,
+    }
+    dump(run_dir / "manifest.json", manifest)
+    rows = []
+    for case in cases:
+        prepare_fixture(settings.mock_data_dir, tmp_path / case["id"], case)
+        for architecture in ("squad", "generalist"):
+            run = await run_one(settings, tmp_path / case["id"], case, architecture, spec(), 1, provider=BothProvider())
+            dump(run_dir / "traces" / f"{run['blind_id']}.json", run)
+            rows.append(
+                {k: v for k, v in run.items() if k not in ("trace", "events", "outputs", "evidence", "calculations")}
+            )
+    persist_reports(run_dir, manifest, rows)
+    measurements, summary = build(run_dir)
+    assert len(measurements["runs"]) == 4 and summary["completed_runs"] == 4
+    assert all("messages" not in json.dumps(r) for r in measurements["runs"])  # nada de prompt publicado
+    groups = {g["architecture"]: g for g in summary["groups"]}
+    assert groups["squad"]["median_latency_seconds"] is not None and groups["squad"]["cases"] == 2
+    tampered = json.loads((run_dir / "summary.json").read_text())
+    tampered["groups"][0]["tokens_in"] += 1
+    dump(run_dir / "summary.json", tampered)
+    with pytest.raises(ValueError, match="divergente"):
+        build(run_dir)

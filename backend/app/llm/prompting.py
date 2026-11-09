@@ -23,6 +23,17 @@ A decisão é humana.
 - Responda SOMENTE com um JSON válido conforme o schema fornecido, sem texto fora do JSON."""
 
 
+WRITING_RULES = """\
+## Como escrever os textos (vão para um analista de crédito ler)
+- Escreva em português, como um analista experiente escreveria num parecer: frases diretas, sem jargão de sistema.
+- Não fale de você nem do processo: nada de "o modelo", "a IA", "o código calculou", "conforme as evidências", \
+"de acordo com os dados fornecidos", "vale ressaltar", "é importante notar".
+- Diga o fato e o número com a unidade (R$, sc/ha, x, %). Ex.: "A cobertura cai para 0,9x se o preço da soja cair 15%."
+- Nos textos, chame as coisas pelo nome (produtividade, alavancagem, CPR), nunca por nomes de campo ou IDs; \
+IDs vão só nos campos de evidência.
+- Sem floreio e sem repetir o que outra seção já disse."""
+
+
 def wrap_untrusted(label: str, content: Any) -> str:
     text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False, indent=None, default=str)
     return f"{UNTRUSTED_OPEN} label={label}>>>\n{text}\n{UNTRUSTED_CLOSE}"

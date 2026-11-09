@@ -64,7 +64,7 @@ export function Conversation({ ws, sidebarOpen, onOpenSidebar }: Props) {
         : status === 'consolidating'
           ? 'Consolidando o relatório'
           : active
-            ? 'Coordenando a squad'
+            ? 'Organizando a análise'
             : null
 
   // Anima só o que chegou depois que a conversa foi aberta (o histórico aparece parado).
@@ -119,10 +119,10 @@ export function Conversation({ ws, sidebarOpen, onOpenSidebar }: Props) {
     reply:
       status === 'waiting_input'
         ? 'Responda aqui ou anexe o documento'
-        : 'Acrescente contexto (prazo, garantias, observações) ou execute a squad',
+        : 'Acrescente contexto (prazo, garantias, observações) ou rode a análise',
     adjust: 'Peça um ajuste ou pergunte sobre a análise',
-    working: 'A squad está trabalhando',
-    locked: 'Este case não existe mais no servidor',
+    working: 'Análise em andamento',
+    locked: 'Esta análise não existe mais no servidor',
   }[mode]
 
   if (!conv || !branch) {
@@ -134,8 +134,8 @@ export function Conversation({ ws, sidebarOpen, onOpenSidebar }: Props) {
           <img className="empty-art" src={ART} alt="" />
           <h1>Qual demanda de crédito vamos analisar?</h1>
           <p className="muted">
-            O Orquestrador monta uma squad de agentes especialistas, cada um com acesso só ao que a tarefa exige. A decisão
-            final é sempre sua.
+            Descreva o pedido. Agentes especialistas preparam a análise, cada um vendo só os dados de que precisa, e a
+            decisão final é sua.
           </p>
           <Composer mode="new" placeholder={placeholder} onSend={send} autoFocus />
           <div className="suggestions">
@@ -206,7 +206,7 @@ export function Conversation({ ws, sidebarOpen, onOpenSidebar }: Props) {
             <div className="callout danger">
               <TriangleAlert size={16} />
               <div>
-                <p>Não consegui abrir o case: {branch.error}</p>
+                <p>Não consegui abrir a análise: {branch.error}</p>
                 <button type="button" className="btn secondary" onClick={() => ws.restartBranch(conv.id, branch)}>
                   Tentar de novo
                 </button>
@@ -216,7 +216,7 @@ export function Conversation({ ws, sidebarOpen, onOpenSidebar }: Props) {
           {caseData?.missing && (
             <div className="callout warn">
               <TriangleAlert size={16} />
-              <p>O servidor foi reiniciado e este case não existe mais (o estado fica em memória). Comece uma nova conversa.</p>
+              <p>Esta análise não está mais no servidor. Comece uma nova conversa.</p>
             </div>
           )}
         </div>
@@ -251,7 +251,7 @@ export function Conversation({ ws, sidebarOpen, onOpenSidebar }: Props) {
           />
         )}
         <Composer key={branch.id} mode={mode} placeholder={placeholder} onSend={send} />
-        <p className="dock-note">Ambiente de demonstração com dados fictícios. A squad prepara a análise; quem decide é você.</p>
+        <p className="dock-note">Ambiente de demonstração com dados fictícios. Os agentes preparam a análise; quem decide é você.</p>
       </div>
     </main>
   )
@@ -286,7 +286,7 @@ function TopBar({ sidebarOpen, onOpenSidebar, title, scope, onReport, onAudit }:
       )}
       <p className="topbar-title">{title ?? 'Nova conversa'}</p>
       {scope && (
-        <span className="scope-pill" title="Escopo travado: nenhum agente acessa outro cliente">
+        <span className="scope-pill" title="Esta análise só acessa este cliente">
           <Lock size={13} />
           {scope}
         </span>

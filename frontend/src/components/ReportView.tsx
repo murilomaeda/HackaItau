@@ -4,13 +4,13 @@ import { keyFigures } from '../answer'
 import { DOMAIN_LABEL, ELIGIBILITY_LABEL, REVIEW_STATUS_LABEL, SEVERITY_ORDER, num } from '../format'
 import { assumptionName, assumptionValue, coverageText, money, readableItem } from '../humanize'
 import { agentName } from '../squad'
-import type { CaseState, Finding, Report, ReportItem } from '../types'
+import type { AnalysisView, CaseState, Finding, Report, ReportItem } from '../types'
 import { CoverageChart } from './CoverageChart'
 import { REPORT_SECTIONS } from '../panel'
 import { OptionCards } from './Options'
 import { SourceChip, Sources } from './SourceChip'
 
-const NOT_APPROVAL = 'Não representa aprovação de crédito'
+const NOT_APPROVAL = 'Não é aprovação de crédito'
 const SEVERITY_LABEL: Record<string, string> = { high: 'alta', medium: 'média', low: 'baixa', info: 'informativo' }
 const FINDING_STATUS: Record<string, string> = { open: 'aberto', resolved: 'resolvido', informational: 'informativo' }
 
@@ -31,7 +31,7 @@ export function ReportView({ report, state, section }: { report: Report; state: 
       <p className="doc-disclaimer">
         {r.disclaimer.includes(NOT_APPROVAL)
           ? r.disclaimer
-          : `Análise gerada para suporte à decisão. ${NOT_APPROVAL}. ${r.disclaimer}`}
+          : `Documento de apoio à decisão. ${NOT_APPROVAL}. ${r.disclaimer}`}
       </p>
 
       <header className="doc-head">
@@ -39,7 +39,7 @@ export function ReportView({ report, state, section }: { report: Report; state: 
           {title.charAt(0).toUpperCase() + title.slice(1)}, {it?.client_ref ?? r.client_id}
         </h2>
         <p className="doc-lede">
-          {money(r.summary.requested_amount ?? 0)} solicitados. A Elegibilidade concluiu{' '}
+          Pedido de {money(r.summary.requested_amount ?? 0)}. Elegibilidade:{' '}
           <strong>{ELIGIBILITY_LABEL[r.summary.eligibility_status] ?? r.summary.eligibility_status}</strong>.
           {base &&
             ` No cenário base, a geração de caixa cobre ${coverageText(base.coverage)} o valor pedido`}
@@ -50,8 +50,8 @@ export function ReportView({ report, state, section }: { report: Report; state: 
           {stressed.length > 0 &&
             (weak.length
               ? ` Em ${weak.length} de ${stressed.length} cenários de estresse a cobertura fica abaixo do exigido.`
-              : ' Nos cenários de estresse a cobertura se mantém dentro da política.')}{' '}
-          A squad propôs {r.alternatives.length} opções de estrutura, sem preferência do sistema.
+              : ' Nos cenários de estresse a cobertura continua dentro da política.')}{' '}
+          Há {r.alternatives.length} formas de estruturar a operação, apresentadas sem ordem de preferência.
         </p>
         <div className="doc-figures">
           {keyFigures(r).map((f) => (
@@ -64,7 +64,13 @@ export function ReportView({ report, state, section }: { report: Report; state: 
         </div>
       </header>
 
-      <Section id={REPORT_SECTIONS.capacity} title="Capacidade de pagamento" origin="code">
+      {r.analysis && (r.analysis.repayment_thesis || r.analysis.break_even.length > 0) && (
+        <Section title="Leitura da operação">
+          <Reasoning a={r.analysis} />
+        </Section>
+      )}
+
+      <Section id={REPORT_SECTIONS.capacity} title="Capacidade de pagamento">
         <CoverageChart report={r} />
       </Section>
 
@@ -75,12 +81,12 @@ export function ReportView({ report, state, section }: { report: Report; state: 
         <OptionCards alternatives={r.alternatives} />
       </Section>
 
-      <Section title="Riscos e pontos a favor" origin="llm">
+      <Section title="Riscos e pontos a favor">
         <ItemList title="Riscos" items={r.risk_factors} withSeverity />
         <ItemList title="Pontos a favor" items={r.favorable_factors} />
       </Section>
 
-      <Section title="Premissas usadas nos cálculos" origin="code">
+      <Section title="Premissas usadas nos cálculos">
         <table className="table plain-table">
           <tbody>
             {r.assumptions
@@ -103,7 +109,7 @@ export function ReportView({ report, state, section }: { report: Report; state: 
         </table>
         {r.assumptions.some((a) => a.origin !== 'code') && (
           <ItemList
-            title="Observações qualitativas do modelo (não entram nas contas)"
+            title="Outras observações (não entram nas contas)"
             items={r.assumptions
               .filter((a) => a.origin !== 'code')
               .map((a) => ({ text: String(a.value), evidence_ids: [], severity: null, code: a.name }))}
@@ -113,7 +119,7 @@ export function ReportView({ report, state, section }: { report: Report; state: 
 
       <Section title={`Pendências e incertezas (${r.missing_data.length + r.uncertainties.length})`}>
         {r.missing_data.length + r.uncertainties.length === 0 ? (
-          <p className="doc-note">Nenhuma registrada.</p>
+          <p className="doc-note">Nada pendente.</p>
         ) : (
           <>
             <ItemList title="Dados que faltam" items={r.missing_data} hideEmpty />
@@ -125,14 +131,15 @@ export function ReportView({ report, state, section }: { report: Report; state: 
       <Section title="O que a revisão encontrou">
         <p className="doc-note">
           {capitalize(REVIEW_STATUS_LABEL[r.review.review_status] ?? r.review.review_status)}, com{' '}
-          {r.review.resolved_count} achado(s) resolvido(s) pelo retrabalho e {r.review.open_count} em aberto.
+          {r.review.resolved_count} {r.review.resolved_count === 1 ? 'ponto corrigido' : 'pontos corrigidos'} na segunda rodada e{' '}
+          {r.review.open_count} em aberto.
           {r.review.overall_assessment && ` ${r.review.overall_assessment}`}
         </p>
         <Findings findings={r.review.findings} />
       </Section>
 
       <div className="doc-details">
-        <Fold title={`Fórmulas e entradas dos cálculos (${r.calculations.length})`}>
+        <Fold title={`Como as contas foram feitas (${r.calculations.length})`}>
           <div className="calcs">
             {r.calculations.map((c) => (
               <div key={c.calculation_id} className="calc">
@@ -156,7 +163,7 @@ export function ReportView({ report, state, section }: { report: Report; state: 
             ))}
           </div>
         </Fold>
-        <Fold title="Contribuição da squad">
+        <Fold title="Quem fez cada parte">
           <SquadContribution report={r} state={state} />
         </Fold>
         <Fold title={`Todas as fontes (${r.sources.length})`}>
@@ -180,23 +187,77 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 function Section({
   id,
   title,
-  origin,
   children,
 }: {
   id?: string
   title: string
-  origin?: 'code' | 'llm'
   children: ReactNode
 }) {
   return (
     <section className="doc-section" id={id}>
       <h3>
         {title}
-        {origin === 'code' && <span className="origin code">calculado por código</span>}
-        {origin === 'llm' && <span className="origin llm">escrito pelo modelo, com fontes</span>}
       </h3>
       {children}
     </section>
+  )
+}
+
+const pct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+
+function breakEvenText(b: AnalysisView['break_even'][number]) {
+  const target = coverageText(b.target_coverage)
+  if (b.max_price_drop_pct < 0) return `A cobertura já está abaixo de ${target} no cenário base.`
+  return `Até ${target}: preço ou produtividade podem cair ${pct(b.max_price_drop_pct)}, ou o custo por hectare subir ${pct(b.max_cost_increase_pct)}.`
+}
+
+function Reasoning({ a }: { a: AnalysisView }) {
+  return (
+    <div className="item-list">
+      {a.repayment_thesis && (
+        <>
+          <h4>
+            Como a operação se paga
+          </h4>
+          <p>{a.repayment_thesis}</p>
+        </>
+      )}
+      {a.break_even.length > 0 && (
+        <>
+          <h4>
+            Quanto a operação aguenta
+          </h4>
+          <ul>
+            {a.break_even.map((b) => (
+              <li key={b.target_coverage}>
+                <span>{breakEvenText(b)}</span>
+                {a.break_even_calculation_id && <Sources ids={[a.break_even_calculation_id]} />}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {a.critical_assumptions.length > 0 && <ItemList title="Premissas que sustentam o pagamento" items={a.critical_assumptions} />}
+      {a.questions_for_analyst.length > 0 && (
+        <>
+          <h4>Perguntas para a diligência</h4>
+          <ul>
+            {a.questions_for_analyst.map((q) => (
+              <li key={q}>
+                <span>{q}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {a.demand_reading && (
+        <Fold title="Como entendemos o pedido">
+          <p className="doc-note" style={{ whiteSpace: 'pre-line' }}>
+            {a.demand_reading}
+          </p>
+        </Fold>
+      )}
+    </div>
   )
 }
 

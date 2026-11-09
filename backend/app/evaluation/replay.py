@@ -45,7 +45,7 @@ class ReplayProvider:
         return LLMResponse(content=old["response"], usage=LLMUsage.model_validate(old["usage"]))
 
 
-async def replay(directories):
+async def replay(directories, revision="merged", note=None):
     settings = Settings(llm_api_key="", _env_file=None)  # impossibilita chamadas à API
     output = DEFAULT_OUTPUT / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S-%fZ") + "-replay")
     inputs = [json.loads((directory / "manifest.json").read_text()) for directory in directories]
@@ -67,7 +67,7 @@ async def replay(directories):
         source_app_hashes=[m["app_sha256"] for m in inputs],
         app_sha256=digest.hexdigest(),
         mode="offline_replay",
-        measurement_revision="current_leverage_synonyms_v2",
+        measurement_revision=revision,
         models=[s for m in inputs for s in m["models"]],
         schedule=[s for m in inputs for s in m["schedule"]],
     )
@@ -140,8 +140,9 @@ async def replay(directories):
     )
     with (output / "REPORT.md").open("a") as f:
         f.write(
-            "\nReavaliação offline: sinônimos de alavancagem atual/líquida corrigidos para todas as arquiteturas. "
-            "Prompts, schemas e quantidade de chamadas conferidos contra os originais. "
+            "\nReavaliação offline"
+            + (f": {note}" if note else "")
+            + ". Prompts, schemas e quantidade de chamadas conferidos contra os originais. "
             "Custos e latências preservados; nenhuma chamada nova à API. Veja source_runs no manifest.\n"
         )
     print(f"Relatório reavaliado: {output / 'REPORT.md'}")
@@ -151,8 +152,10 @@ async def replay(directories):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directories", nargs="+", type=Path)
+    parser.add_argument("--revision", default="merged", help="rótulo da medição gravado no manifest")
+    parser.add_argument("--note", help="frase acrescentada ao REPORT.md explicando a reavaliação")
     args = parser.parse_args()
-    asyncio.run(replay(args.directories))
+    asyncio.run(replay(args.directories, args.revision, args.note))
 
 
 if __name__ == "__main__":

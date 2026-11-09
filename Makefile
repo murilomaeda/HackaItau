@@ -3,9 +3,11 @@
 #   make run       demo: build do frontend + FastAPI servindo tudo em http://localhost:8000
 #   make dev       hot reload: vite (5173, proxy /api) + uvicorn --reload (8000); Ctrl+C encerra os dois
 #   make test      pytest + ruff + build/lint do frontend
-#   make benchmark comparativo real (API paga): 8 casos × 2 arquiteturas × 2 modelos
+#   make benchmark comparativo real (API paga): 21 casos × 2 arquiteturas × 2 modelos
 #   make benchmark-plan mostra os casos e modelos sem chamar a API
-#   make benchmark-audit confere offline os 48 registros publicados e seus custos
+#   make benchmark-audit confere offline os registros publicados e seus custos
+#   make benchmark-publish RUN=artifacts/evaluations/<execução> publica uma execução para a demo (confere antes)
+#   make benchmark-leitura 36 pedidos escritos de jeitos diferentes; LLM=1 inclui a leitura com LLM (API paga)
 
 SHELL := /bin/bash
 .ONESHELL:
@@ -15,7 +17,7 @@ VENV   := backend/.venv
 PY     := $(CURDIR)/$(VENV)/bin/python
 PORT   ?= 8000
 
-.PHONY: help install install-backend install-frontend env run dev backend frontend build test clean benchmark benchmark-plan benchmark-audit
+.PHONY: help install install-backend install-frontend env run dev backend frontend build test clean benchmark benchmark-plan benchmark-audit benchmark-publish benchmark-leitura
 
 help:
 	@grep -E '^#   make' Makefile | sed 's/^#   //'
@@ -58,8 +60,17 @@ test:
 benchmark:
 	$(PY) -m app.evaluation.runner $(ARGS)
 
+benchmark-leitura:
+	cd $(CURDIR)/backend && $(PY) -m app.evaluation.interpretation $(if $(LLM),--llm) $(ARGS)
+
+benchmark-conversa:
+	cd $(CURDIR)/backend && $(PY) -m app.evaluation.conversation
+
 benchmark-audit:
 	$(PY) -m app.evaluation.audit
+
+benchmark-publish:
+	$(PY) -m app.evaluation.publish $(RUN)
 
 benchmark-plan:
 	$(PY) -m app.evaluation.runner --dry-run $(ARGS)

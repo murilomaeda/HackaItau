@@ -18,6 +18,7 @@ from app.agents.review.validators import ReviewContext, run_validators
 from app.agents.runtime import AgentExecutionError, AgentRuntime
 from app.calculations.policy_params import load_policy_params
 from app.config import Settings
+from app.core.crops import expected_price_unit
 from app.core.schemas.agent import CARRY_OVER_ACTION, HUMAN_ADJUSTMENT_ACTION, AgentResult, ReworkInstruction, TaskSpec
 from app.core.schemas.case import (
     AgentCardState,
@@ -26,19 +27,21 @@ from app.core.schemas.case import (
     CaseStatus,
     DemoOptions,
     MissingInfoRequest,
+    OpenQuestion,
 )
 from app.core.schemas.context import CaseScope, ExecutionContext, UserIdentity
-from app.core.schemas.events import EventType
+from app.core.schemas.events import EventType, SecurityEventKind
 from app.core.schemas.outputs import AIReviewOutput, EligibilityOutput, Finding, ReviewOutput
 from app.core.schemas.report import HumanGateView
 from app.core.store import CaseRecord, CaseStore, RunJob
 from app.data.repository import DataRepository, KnowledgeRetriever
 from app.documents.attachments import MAX_PER_CASE, AttachmentError, extract_text, infer_type
+from app.governance import pii
 from app.governance.bootstrap_resolver import BootstrapClientResolver
 from app.governance.injection_guard import scan_record
 from app.governance.loader import load_identities
 from app.governance.output_guard import OutputGuard
-from app.orchestration.clarify import answers_from_text, context_from, describe_context, open_questions
+from app.orchestration.clarify import answers_from_text, context_from, demand_warnings, describe_context, open_questions
 from app.orchestration.consolidator import consolidate
 from app.orchestration.interpreter import heuristic_interpret, interpret, parse_amount
 from app.orchestration.plans import ELIGIBILITY, REVIEW, RISK, PlanStep, dependents_of, plan_for
@@ -46,7 +49,11 @@ from app.tools.deps import ToolDeps
 from app.tools.gateway import Toolbox
 
 PURPOSE = "credit_analysis_agro"
-PRODUCT_FAMILY_BY_PURPOSE = {"custeio": "credito_rural_custeio"}
+PRODUCT_FAMILY_BY_PURPOSE = {
+    "custeio": "credito_rural_custeio",
+    "investimento": "credito_rural_investimento",
+    "comercializacao": "credito_rural_comercializacao",
+}
 MAX_REWORK_ROUNDS = 1
 MAX_HUMAN_ADJUSTMENTS = 3
 
@@ -91,9 +98,28 @@ class Orchestrator:
         rec.state.status = CaseStatus.interpreting
         rec.state.interpreted = await interpret(prompt, self._runtime.provider, self._runtime.model)
         self._bootstrap(rec, user, rec.state.interpreted.client_ref)
-        rec.state.open_questions = open_questions(rec.state.interpreted)
+        rec.state.open_questions = self._questions(rec)
         rec.touch()
         return rec
+
+    def _questions(self, rec: CaseRecord) -> list[OpenQuestion]:
+        """Perguntas de volta + o que já se sabe que vai parar na Elegibilidade. Bloqueantes primeiro."""
+        questions = open_questions(rec.state.interpreted)
+        scope, user = rec.state.scope, self._user(rec.state.user_id)
+        if scope is None:
+            return questions
+        # só a cultura do perfil do cliente já travado no escopo, e só se o perfil do usuário pode ler esse domínio
+        profile = self._repo.get_agro_profile(scope.client_ids[0]) if "agro_profile" in user.permissions_read else None
+        crop = rec.state.interpreted.crop if rec.state.interpreted else None
+        can_read_market = "market_data" in user.permissions_read
+        warnings = demand_warnings(
+            rec.state.interpreted,
+            profile.get("crop") if profile else None,
+            self._repo.get_market_data(crop) if crop and can_read_market else {"unit": expected_price_unit(crop)},
+            load_policy_params().eligibility.min_requested_amount,
+        )
+        blocking = [q for q in questions if q.blocking]
+        return blocking + warnings + [q for q in questions if not q.blocking]
 
     def provide_input(self, case_id: str, answers: dict) -> CaseRecord:
         rec = self._get(case_id)
@@ -155,10 +181,12 @@ class Orchestrator:
                     update[field] = answers[key]
             if answers.get("tipo_de_operacao"):
                 update["request_kind"] = answers["tipo_de_operacao"]
+            if it.ambiguities and answers:  # o analista respondeu: a leitura dele vale mais que a dúvida registrada
+                update["ambiguities"] = []
             if update:
                 rec.state.interpreted = it.model_copy(update=update)
         rec.state.analyst_context = describe_context(rec.answers)
-        rec.state.open_questions = open_questions(rec.state.interpreted)
+        rec.state.open_questions = self._questions(rec)
 
     # ------------------------------------------------------------- attachments
 
@@ -176,6 +204,9 @@ class Orchestrator:
         except AttachmentError as exc:
             raise OrchestratorError("invalid_attachment", str(exc), 422) from exc
 
+        # dado pessoal sai antes de o anexo virar documento do case; o scan de injeção abaixo vê o texto original
+        original = text
+        text, pii_counts = pii.redact(text)
         doc_id = f"ANX-{len(rec.attachments) + 1:03d}"
         now = datetime.now(timezone.utc)
         record = {
@@ -186,7 +217,7 @@ class Orchestrator:
             "extracted": {},
             "content": text,
         }
-        flagged = bool(rec.state.scope and scan_record(record, rec.state.scope).flagged)
+        flagged = bool(rec.state.scope and scan_record(record | {"content": original}, rec.state.scope).flagged)
         rec.attachments.append(record)
         rec.state.attachments.append(
             AttachmentView(
@@ -204,6 +235,11 @@ class Orchestrator:
             EventType.DOCUMENT_ATTACHED,
             {"doc_id": doc_id, "doc_type": record["type"], "chars": len(text), "truncated": truncated, "flagged": flagged},
         )
+        if pii_counts:
+            rec.events.emit(
+                EventType.SECURITY_EVENT,
+                {"kind": SecurityEventKind.PII_REDACTED.value, "doc_id": doc_id, "redacted": pii_counts, "blocked": False},
+            )
         # a Elegibilidade tinha bloqueado por este tipo de documento: o anexo cumpre o pedido
         info = rec.state.missing_info
         if rec.state.status == CaseStatus.waiting_input and info is not None and info.reason == "eligibility_blocked":
@@ -245,7 +281,8 @@ class Orchestrator:
         if result.status != "ok" or result.client is None:
             reason = "client_ambiguous" if result.status == "ambiguous" else "client_unresolved"
             message = (
-                f"Mais de um cliente corresponde à referência ({result.count}). Informe o ID exato (ex.: CLIENTE-001)."
+                f"Mais de um cliente corresponde à referência ({result.count}). "
+                "Informe o nome completo ou o ID (ex.: CLIENTE-001)."
                 if result.status == "ambiguous"
                 else "Não foi possível identificar o cliente. Informe o nome completo ou o ID (ex.: CLIENTE-001)."
             )

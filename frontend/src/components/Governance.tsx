@@ -178,7 +178,7 @@ function summarize(e: CaseEvent): string {
     case 'OUTPUT_GUARD_APPLIED':
       return `${(p.codes as string[] | undefined)?.join(', ') ?? ''} · ${String(p.redactions ?? 0)} redações`
     case 'RESULT_CONSOLIDATED':
-      return `${String(p.findings)} findings · ${String(p.alternatives)} alternativas · ${String(p.rework_rounds)} rework`
+      return `${String(p.findings)} apontamentos · ${String(p.alternatives)} alternativas · ${String(p.rework_rounds)} retrabalho`
     case 'CASE_COMPLETED':
       return String(p.note ?? '')
     default:

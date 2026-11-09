@@ -379,7 +379,7 @@ async def test_review_ai_findings_require_evidence(registry, toolbox_factory, an
             "code": "FRAGILE_ASSUMPTION",
             "severity": "medium",
             "message": "61 > 58 sem justificativa",
-            "evidence_ids": ["KB-POL-AGRO-001-c2", "KB-INVENTADO-c9"],
+            "evidence_ids": ["KB-POL-CRED-002-c4", "KB-INVENTADO-c9"],
             "origin": "validator",
             "required_action": "recalc",
         },
@@ -396,7 +396,7 @@ async def test_review_ai_findings_require_evidence(registry, toolbox_factory, an
     result, *_ = await _run(registry, toolbox_factory, analyst, scope_001, "credit_review", provider)
     fs = result.output["findings"]
     assert len(fs) == 1 and fs[0]["id"] == "F-AI-001" and fs[0]["origin"] == "ai_review" and fs[0]["required_action"] is None
-    assert fs[0]["evidence_ids"] == ["KB-POL-AGRO-001-c2"]
+    assert fs[0]["evidence_ids"] == ["KB-POL-CRED-002-c4"]
     assert "finding_sem_evidencia_descartado:NO_EVIDENCE" in result.warnings
 
 
@@ -422,3 +422,18 @@ def test_playbooks_exist_and_forbid_decisions(registry):
         assert "## Papel" in text and "## Regras" in text
         low = text.lower()
         assert "aprov" in low and ("instruções" in low or "não confiáve" in low)
+
+
+async def test_stress_coverages_and_policy_limits_are_not_flagged_as_divergent(
+    registry, toolbox_factory, analyst, scope_001, unjustified_baseline
+):
+    first, *_ = await _run(registry, toolbox_factory, analyst, scope_001, "agro_credit_risk", FakeProvider(RISK_LLM))
+    stress = next(
+        sc for sc in RiskOutput.model_validate(first.output).stress_scenarios if sc.scenario_id == "price_minus_15pct"
+    )
+    cited = f"{stress.coverage:.2f}".replace(".", ",") + "x"
+    llm = json.loads(RISK_LLM)
+    llm["risk_narrative"] = f"No pior cenário a cobertura vai a {cited}, abaixo do mínimo confortável de 1,50x."
+    result, *_ = await _run(registry, toolbox_factory, analyst, scope_001, "agro_credit_risk", FakeProvider(json.dumps(llm)))
+    flagged = " ".join(result.warnings)
+    assert cited not in flagged and "1,50x" not in flagged

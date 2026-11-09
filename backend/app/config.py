@@ -22,6 +22,16 @@ class Settings(BaseSettings):
     demo_mode: bool = True
     frontend_dist: Path = REPO_ROOT / "frontend" / "dist"
 
+    # Sessão: tokens HS256 assinados pelo backend. Sem AUTH_SECRET, a chave é gerada e guardada em state_dir.
+    auth_secret: str = ""
+    session_ttl_minutes: int = 480
+    login_max_failures: int = 5
+    login_window_seconds: int = 300
+
+    # Persistência: cases e audit em SQLite (state_dir/atena.db). PERSISTENCE=false volta ao estado só em memória.
+    persistence: bool = True
+    state_dir: Path = REPO_ROOT / "var"
+
     mock_data_dir: Path = APP_DIR / "data" / "mock"
     knowledge_corpus_dir: Path = APP_DIR / "knowledge" / "corpus"
     governance_dir: Path = APP_DIR / "governance"
@@ -35,7 +45,7 @@ class Settings(BaseSettings):
 
     def secret_values(self) -> list[str]:
         """Valores que o Output Guard e o provider usam para garantir que nenhum secret vaza."""
-        return [v for v in (self.llm_api_key,) if v]
+        return [v for v in (self.llm_api_key, self.auth_secret) if v]
 
 
 @lru_cache

@@ -20,6 +20,17 @@
       "volatility_note": "high",
       "trend_note": "Mock.",
       "trader_desk_notes": "MOCK-NEVER."
-    }
+    },
+    {"commodity": "cafe", "reference_price": 1400, "unit": "BRL/saca", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "high", "trend_note": "Preço fictício com alta volatilidade; sensível a clima e câmbio (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "trigo", "reference_price": 85, "unit": "BRL/saca", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "medium", "trend_note": "Preço fictício pressionado por importação (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "arroz", "reference_price": 95, "unit": "BRL/saca", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "medium", "trend_note": "Preço fictício estável na entressafra (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "feijao", "reference_price": 240, "unit": "BRL/saca", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "high", "trend_note": "Preço fictício com forte oscilação entre safras (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "sorgo", "reference_price": 48, "unit": "BRL/saca", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "medium", "trend_note": "Preço fictício acompanha o milho com desconto (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "cana", "reference_price": 150, "unit": "BRL/tonelada", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "medium", "trend_note": "Preço fictício por tonelada de cana (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "algodao", "reference_price": 135, "unit": "BRL/arroba", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "high", "trend_note": "Preço fictício por arroba; sensível a câmbio e à demanda externa (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "laranja", "reference_price": 45, "unit": "BRL/caixa", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "medium", "trend_note": "Preço fictício por caixa de 40,8 kg; depende da indústria de suco (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "mandioca", "reference_price": 700, "unit": "BRL/tonelada", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "medium", "trend_note": "Preço fictício por tonelada de raiz (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "cacau", "reference_price": 450, "unit": "BRL/arroba", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "high", "trend_note": "Preço fictício por arroba; forte oscilação internacional (mock).", "trader_desk_notes": "MOCK-NEVER."},
+    {"commodity": "banana", "reference_price": 1800, "unit": "BRL/tonelada", "currency": "BRL", "price_date": "2026-09-01", "volatility_note": "medium", "trend_note": "Preço fictício por tonelada; produto perecível, com venda rápida (mock).", "trader_desk_notes": "MOCK-NEVER."}
   ]
 }

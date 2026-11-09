@@ -14,6 +14,13 @@ export interface Identity {
   permissions_read: string[]
 }
 
+export interface LoginReply {
+  access_token: string
+  token_type: string
+  expires_at: number // segundos desde 1970
+  user: Identity
+}
+
 export type CaseStatus =
   | 'created'
   | 'interpreting'
@@ -111,6 +118,8 @@ export interface InterpretedDemand {
   guarantees: string[]
   region: string | null
   area_hectares: number | null
+  reasoning?: string
+  ambiguities?: string[]
 }
 
 export interface OpenQuestion {
@@ -145,6 +154,9 @@ export type AssistKind =
   | 'capabilities'
   | 'out_of_scope'
   | 'clarify'
+  | 'info'
+  | 'no_data'
+  | 'run_squad'
 
 export interface AssistReply {
   kind: AssistKind
@@ -171,6 +183,8 @@ export interface AgentMetrics {
   validation_clean: number
   validation_first_pass_pct: number | null
   hits: number
+  finished: number
+  first_pass_pct: number | null
   validator_fixes: number
   reopened_by_review: number
   adjusted_by_human: number
@@ -188,6 +202,7 @@ export interface AgentMetrics {
     findings_raised: number
     material_findings: number
     reworks_triggered: number
+    checked_after_rework: number
     confirmed_by_rework: number
     confirmation_pct: number | null
   } | null
@@ -396,6 +411,22 @@ export interface HumanGateView {
   notice: string
 }
 
+export interface BreakEven {
+  target_coverage: number
+  max_price_drop_pct: number
+  max_productivity_drop_pct: number
+  max_cost_increase_pct: number
+}
+
+export interface AnalysisView {
+  repayment_thesis: string
+  critical_assumptions: ReportItem[]
+  break_even: BreakEven[]
+  break_even_calculation_id: string | null
+  questions_for_analyst: string[]
+  demand_reading: string
+}
+
 export interface Report {
   case_id: string
   client_id: string
@@ -431,6 +462,7 @@ export interface Report {
   }
   governance: GovernanceView
   human_gate: HumanGateView
+  analysis?: AnalysisView
   policy_limits?: {
     source_doc_id: string
     coverage_comfortable_min: number | null
@@ -494,5 +526,13 @@ export interface BenchmarkSummary {
     total_cost_usd: number | null
     cost_per_accepted_usd: number | null
     mean_latency_seconds: number
+    // a partir do benchmark de 21 casos; ausentes nos resumos antigos
+    median_latency_seconds?: number | null
+    p95_latency_seconds?: number | null
+    automatic_pass_rate_ci95?: [number, number] | null
+    cost_per_run_usd?: number | null
+    cost_per_automatic_pass_usd?: number | null
+    cases?: number
+    repetitions?: number
   }[]
 }

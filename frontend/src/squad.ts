@@ -99,7 +99,7 @@ const toolKind = (action: string): StepKind =>
       : 'data'
 
 export const DENY_REASON: Record<string, string> = {
-  client_out_of_case_scope: 'cliente fora do escopo do case',
+  client_out_of_case_scope: 'cliente de fora desta análise',
   resource_not_authorized_for_agent: 'recurso não autorizado para este agente',
   resource_not_authorized_for_purpose: 'recurso não autorizado para esta finalidade',
   resource_not_authorized_for_user: 'recurso não autorizado para o usuário',
@@ -113,9 +113,10 @@ export const deniedTarget = (p: Record<string, unknown>) =>
   `${DOMAIN_LABEL[String(p.resource_domain)] ?? String(p.resource_domain)}${p.resource_key ? ` de ${String(p.resource_key)}` : ''}`
 
 export const SECURITY_LABEL: Record<string, string> = {
-  INJECTION_SUSPECTED: 'Documento com instruções suspeitas (prompt injection). Foi tratado como dado, não como instrução.',
-  SCOPE_VIOLATION_BLOCKED: 'Tentativa de acesso fora do escopo do case bloqueada.',
+  INJECTION_SUSPECTED: 'Um documento trazia instruções escondidas. Ele foi lido como documento, e as instruções foram ignoradas.',
+  SCOPE_VIOLATION_BLOCKED: 'Pedido de dados de outro cliente bloqueado.',
   SECRET_LEAK_BLOCKED: 'Vazamento de segredo bloqueado.',
+  PII_REDACTED: 'Dados pessoais (CPF, CNPJ, contato, conta) foram removidos antes da análise.',
   BOOTSTRAP_DENIED: 'Você não tem permissão para consultar este cliente.',
 }
 
@@ -137,7 +138,7 @@ export function stepOf(e: CaseEvent): Step | null {
     case 'OUTPUT_REJECTED':
       return step('rejected', p.retry ? 'Resposta fora do formato; devolvida ao modelo' : 'Resposta rejeitada pelo validador', 'warn')
     case 'GROUNDING_REJECTED':
-      return step('rejected', 'Citações sem evidência descartadas', 'warn')
+      return step('rejected', 'Citou fonte que não existe; a citação foi descartada', 'warn')
     case 'AGENT_COMPLETED':
       return step('done', 'Entregou o resultado', 'ok')
     case 'TASK_REOPENED':
@@ -207,7 +208,7 @@ export function naturalQuestion(reason: string, items: string[]): { lead: string
   if (reason === 'client_ambiguous') {
     return {
       lead: 'Mais de um cliente combina com esse nome.',
-      asks: ['Qual deles? Me passe o código exato (por exemplo, CLIENTE-001).'],
+      asks: ['Qual deles? Me passe o nome completo da empresa ou o código dela (por exemplo, CLIENTE-001).'],
     }
   }
   const asks = items.map((item) => {

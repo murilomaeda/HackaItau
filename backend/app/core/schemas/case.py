@@ -39,7 +39,8 @@ class DemoOptions(BaseModel):
 
 
 class CreateCaseRequest(BaseModel):
-    user_id: str
+    # o usuário vem do token de sessão; se o corpo trouxer outro, a API recusa (403 user_mismatch)
+    user_id: str | None = None
     prompt: str
     demo_options: DemoOptions = Field(default_factory=DemoOptions)
 
@@ -106,7 +107,7 @@ class AttachmentView(BaseModel):
 
 
 class AttachmentRequest(BaseModel):
-    user_id: str
+    user_id: str | None = None  # idem: só conferido contra o token
     filename: str
     content_type: str = ""
     data_base64: str

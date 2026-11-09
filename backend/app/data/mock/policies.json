@@ -24,7 +24,9 @@
   "eligibility": {
     "source_doc_id": "POL-AGRO-001",
     "required_documents_by_purpose": {
-      "custeio": ["matricula_ou_arrendamento", "plano_de_plantio", "demonstracoes_financeiras"]
+      "custeio": ["matricula_ou_arrendamento", "plano_de_plantio", "demonstracoes_financeiras"],
+      "investimento": ["matricula_ou_arrendamento", "demonstracoes_financeiras", "projeto_tecnico"],
+      "comercializacao": ["demonstracoes_financeiras", "contratos_de_venda"]
     },
     "required_fields": ["crop", "planted_area_hectares", "production_cycle"],
     "min_requested_amount": 1000000,

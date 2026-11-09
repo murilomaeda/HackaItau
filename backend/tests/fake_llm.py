@@ -120,6 +120,16 @@ def _eligibility(ev: _Evidence) -> dict[str, Any]:
 def _risk(ev: _Evidence) -> dict[str, Any]:
     agro, market, fin = ev.ids("agro_profile"), ev.ids("market_data"), ev.ids("client_financials")
     return {
+        "repayment_thesis": "O pagamento sai da venda da safra financiada; depende de colher perto do histórico e de "
+        "o preço não cair além do colchão calculado.",
+        "critical_assumptions": [
+            {
+                "code": "PRICE_BUFFER",
+                "message": "Preço precisa ficar acima do ponto de equilíbrio.",
+                "evidence_ids": ev.calcs,
+            }
+        ],
+        "questions_for_analyst": ["Há contrato de venda antecipada ou hedge para parte da produção?"],
         "risk_narrative": "Métricas e cenários vêm dos cálculos citados; sensibilidade a preço e produtividade e "
         "alavancagem pró-forma são os pontos de atenção.",
         "main_risks": [
@@ -169,9 +179,17 @@ def _structuring(ev: _Evidence) -> dict[str, Any]:
         ("Custeio com CPR financeira", "bullet_post_harvest", ["cpr_financeira", "seguro_agricola"], 12),
         ("Custeio em tranches com gatilhos", "two_installments_post_harvest", ["penhor_safra", "seguro_agricola"], 14),
     ]
+    # como um modelo que leu o catálogo: só produtos cuja faixa comporta o valor, no prazo e amortização deles
+    fitting = [
+        (sid, p) for sid, p in products if float(p.get("min_amount") or 0) <= amount <= float(p.get("max_amount") or amount)
+    ]
+    products = fitting if len(fitting) >= 2 else products
     alts = []
     for i, (name, amort, guarantees, tenor) in enumerate(templates, start=1):
         sid, prod = products[min(i - 1, len(products) - 1)] if products else ("", {})
+        tenor = min(max(tenor, prod.get("tenor_months_min", tenor)), prod.get("tenor_months_max", tenor))
+        options = prod.get("amortization_options") or [amort]
+        amort = amort if amort in options else options[0]
         alts.append(
             {
                 "id": f"ALT-{i}",

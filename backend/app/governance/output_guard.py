@@ -15,6 +15,7 @@ from app.core.schemas.context import CaseScope
 from app.core.schemas.outputs import Finding
 from app.core.schemas.report import Report, ReportItem
 from app.data.repository import DataRepository
+from app.governance import pii
 from app.governance.loader import load_resource_policies
 
 REDACTED = "[REDACTED]"
@@ -83,7 +84,10 @@ class OutputGuard:
                         text = item.get("text", "")
                         data["uncertainties"].append(
                             ReportItem(
-                                text=f"[sem evidência] {text}", evidence_ids=[], severity="info", code="GUARD_UNGROUNDED"
+                                text=f"Sem fonte que sustente: {text}",
+                                evidence_ids=[],
+                                severity="info",
+                                code="GUARD_UNGROUNDED",
                             ).model_dump()
                         )
             data[section] = kept
@@ -105,7 +109,7 @@ class OutputGuard:
                 Finding(
                     id=f"F-G-{i:03d}",
                     code=code,
-                    severity="high" if code in ("GUARD_SECRET", "GUARD_SCOPE", "GUARD_FORBIDDEN_FIELD") else "low",
+                    severity="high" if code in _HIGH_SEVERITY else "low",
                     message=_MESSAGES[code].format(n=n),
                     owner_agent=None,
                     evidence_ids=[],
@@ -144,6 +148,7 @@ class OutputGuard:
             if value in text:
                 text = text.replace(value, REDACTED)
                 bump("GUARD_FORBIDDEN_FIELD")
+        text, _ = pii.redact(text, lambda _kind: bump("GUARD_PII"))
         out, last = [], 0
         for m in LANGUAGE_RE.finditer(text):
             if NEGATION_RE.search(text[: m.start()]):
@@ -190,11 +195,13 @@ _ID_KEYS = {
     "sources",
 }
 
+_HIGH_SEVERITY = {"GUARD_SECRET", "GUARD_SCOPE", "GUARD_FORBIDDEN_FIELD", "GUARD_PII"}
 _MESSAGES = {
-    "GUARD_SECRET": "{n} trecho(s) com formato/valor de secret redigido(s).",
-    "GUARD_SCOPE": "{n} referência(s) a cliente fora do CaseScope redigida(s).",
-    "GUARD_FORBIDDEN_FIELD": "{n} valor(es) de campo `never` redigido(s).",
-    "GUARD_UNGROUNDED": "{n} item(ns) sem evidência válida movido(s)/marcado(s).",
-    "GUARD_LANGUAGE": "{n} expressão(ões) de decisão/certeza neutralizada(s).",
-    "GUARD_STATUS": "decision_status forçado para ready_for_human_review.",
+    "GUARD_SECRET": "{n} trecho(s) parecido(s) com senha ou chave de acesso removido(s) do relatório.",
+    "GUARD_SCOPE": "{n} menção(ões) a outro cliente removida(s) do relatório.",
+    "GUARD_FORBIDDEN_FIELD": "{n} dado(s) interno(s) do cadastro removido(s) do relatório.",
+    "GUARD_PII": "{n} dado(s) pessoal(is) (CPF, CNPJ, cartão, contato ou conta) removido(s) do relatório.",
+    "GUARD_UNGROUNDED": "{n} afirmação(ões) sem fonte movida(s) para incertezas.",
+    "GUARD_LANGUAGE": "{n} frase(s) que davam a decisão como tomada reescrita(s).",
+    "GUARD_STATUS": "O relatório segue para decisão do analista.",
 }

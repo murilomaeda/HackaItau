@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app.agents.base import BaseAgent, ValidatedOutput
 from app.calculations.policy_params import load_policy_params
-from app.core.crops import normalize_crop
+from app.core.crops import expected_price_unit, normalize_crop, productivity_unit
 from app.core.schemas.agent import TaskSpec
 from app.core.schemas.context import ExecutionContext
 from app.core.schemas.evidence import EvidenceBundle, SourceRecord
@@ -151,12 +151,15 @@ def _culture_problems(
                 "Atualize a base de mercado antes de executar a análise; não será usada a cotação de outra cultura.",
             )
         )
-    elif any(s.data.get("unit") != "BRL/saca" for s in market if normalize_crop(s.data.get("commodity")) == crop):
+    elif any(
+        s.data.get("unit") != expected_price_unit(crop) for s in market if normalize_crop(s.data.get("commodity")) == crop
+    ):
         problems.append(
             MissingItem(
                 item="market_data",
                 blocking=True,
-                message="A cotação precisa estar em BRL/saca para os cálculos atuais, que usam produtividade em sacas/ha.",
+                message=f"A cotação de {crop} precisa estar em {expected_price_unit(crop)} para os cálculos, "
+                f"que usam produtividade em {productivity_unit(crop)}.",
             )
         )
     return problems

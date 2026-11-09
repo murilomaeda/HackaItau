@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import get_settings
-from app.governance.bootstrap_resolver import normalize
+from app.governance.bootstrap_resolver import legal_core, matches_partial_name, normalize
 
 Record = dict[str, Any]
 
@@ -34,13 +34,23 @@ class JsonMockRepository:
         return self._one(self._records("clients"), "client_id", client_id)
 
     def find_clients_exact(self, name_or_id: str) -> list[Record]:
+        """Igualdade exata do código ou do nome normalizado. O sufixo societário (S.A., Ltda.) é opcional:
+        "Fazenda Horizonte" = "Fazenda Horizonte S.A."."""
         ref_id = name_or_id.strip().upper()
-        ref_name = normalize(name_or_id)
+        ref_name = legal_core(normalize(name_or_id))
         out = []
         for r in self._records("clients"):
-            if r["client_id"].upper() == ref_id or normalize(r["name"]) == ref_name:
+            if r["client_id"].upper() == ref_id or legal_core(normalize(r["name"])) == ref_name:
                 out.append({"client_id": r["client_id"], "name": r["name"]})
         return out
+
+    def find_clients_by_partial_name(self, name: str) -> list[Record]:
+        """Só para o Bootstrap Resolver. Palavras inteiras do nome; ver `matches_partial_name`."""
+        return [
+            {"client_id": r["client_id"], "name": r["name"]}
+            for r in self._records("clients")
+            if matches_partial_name(name, r["name"])
+        ]
 
     def get_financials(self, client_id: str) -> Record | None:
         return self._one(self._records("financials"), "client_id", client_id)
