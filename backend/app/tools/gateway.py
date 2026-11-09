@@ -15,6 +15,7 @@ from app.core.schemas.context import ExecutionContext
 from app.core.schemas.events import EventType, SecurityEventKind, ToolEventPayload
 from app.core.schemas.evidence import CalculationRecord, SourceRecord, knowledge_id, source_id
 from app.core.schemas.tools import Decision, ToolResult, ToolSpec
+from app.governance import pii
 from app.governance.filters import apply_field_projection, apply_row_scope
 from app.governance.injection_guard import scan_record
 from app.governance.policy_engine import authorize
@@ -133,7 +134,10 @@ class Toolbox:
             projected, hidden = apply_field_projection(record, decision.field_projection, decision.never_fields)
             if not projected:
                 continue  # deny por omissão: sem projeção para o agente, nada chega
+            # o scan de injeção vê o texto original; o que vira evidência (e chega ao LLM) já sai sem dado pessoal
             scan = scan_record(projected, self.ctx.case_scope)
+            pii_counts: dict[str, int] = {}
+            projected = pii.redact_value(projected, pii_counts)
             rec_id, title = self._identify(spec, params, resource_key, record)
             source = SourceRecord(
                 id=rec_id,
@@ -150,6 +154,20 @@ class Toolbox:
             )
             self.evidence.register(source)
             sources.append(source)
+            if pii_counts:
+                self.events.emit(
+                    EventType.SECURITY_EVENT,
+                    {
+                        "kind": SecurityEventKind.PII_REDACTED.value,
+                        "source_id": source.id,
+                        "resource_domain": spec.resource_domain,
+                        "redacted": pii_counts,
+                        "blocked": False,
+                        "permissions_changed": False,
+                    },
+                    agent_id=self.ctx.agent_id,
+                    task_id=self.ctx.task_id,
+                )
             if scan.flagged:
                 self.events.emit(
                     EventType.SECURITY_EVENT,
@@ -159,6 +177,9 @@ class Toolbox:
                         "resource_domain": spec.resource_domain,
                         "out_of_scope_refs": scan.out_of_scope_refs,
                         "patterns_matched": len(scan.matched_patterns),
+                        "categories": scan.matched_patterns,
+                        "score": scan.score,
+                        "evasion": scan.evasion,
                         "blocked": False,
                         "permissions_changed": False,
                     },

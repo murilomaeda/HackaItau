@@ -167,7 +167,7 @@ export function buildTurns(state: CaseState | null, events: CaseEvent[], opts: B
             key: k,
             kind: 'scope',
             tone: 'neutral',
-            text: `Escopo travado em ${(p.client_ids as string[]).join(', ')}. Nenhum agente pode acessar outro cliente neste case.`,
+            text: `Esta análise fica restrita a ${(p.client_ids as string[]).join(', ')}. Dados de outros clientes ficam de fora.`,
           },
         })
         break
@@ -315,7 +315,7 @@ export function buildTurns(state: CaseState | null, events: CaseEvent[], opts: B
           kind: 'text',
           key: k,
           tone: 'ok',
-          text: 'Aprovação registrada na auditoria. O case segue para a próxima etapa do processo; isto não é uma aprovação de crédito.',
+          text: 'Registrado. A análise segue para a próxima etapa; isso não é aprovação de crédito.',
         })
         break
       case 'EXECUTION_FAILED': {
@@ -436,7 +436,7 @@ function applyAgentEvent(block: ActivityBlock, e: CaseEvent) {
         key: `n${e.seq}`,
         kind: 'denied',
         tone: 'danger',
-        text: `${agentName(id)} tentou acessar ${deniedTarget(p)}. O backend negou (${denyReason(p.reason)}) e as permissões não mudaram.`,
+        text: `${agentName(id)} pediu ${deniedTarget(p)} e o acesso foi bloqueado (${denyReason(p.reason)}).`,
       })
       break
     case 'SECURITY_EVENT':
@@ -448,7 +448,7 @@ function applyAgentEvent(block: ActivityBlock, e: CaseEvent) {
           key: `n${e.seq}`,
           kind: 'injection',
           tone: 'danger',
-          text: `Um documento do case trazia instruções para os agentes${refs ? ` e citava ${(p.out_of_scope_refs as string[]).join(', ')}` : ''}. Ele foi tratado como dado, não como instrução.`,
+          text: `Um documento desta análise trazia instruções escondidas${refs ? ` e mencionava ${(p.out_of_scope_refs as string[]).join(', ')}` : ''}. As instruções foram ignoradas.`,
         })
       }
       break

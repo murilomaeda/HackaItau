@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.container import build_container, get_container
 from app.main import app
+from tests.conftest import login
 from tests.fake_llm import StubProvider
 
 PROMPT = "O cliente Fazenda Horizonte S.A. solicita R$ 50 milhões para custeio da safra de soja 2025/26."
@@ -18,7 +19,7 @@ def client():
     container = build_container(Settings(llm_api_key="", _env_file=None))
     container.runtime.provider = StubProvider()
     app.dependency_overrides[get_container] = lambda: container
-    with TestClient(app) as c:  # lifespan mantém o event loop vivo para a task em background
+    with login(TestClient(app)) as c:  # lifespan mantém o event loop vivo para a task em background
         yield c
     app.dependency_overrides.clear()
 

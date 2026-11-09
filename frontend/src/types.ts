@@ -14,6 +14,13 @@ export interface Identity {
   permissions_read: string[]
 }
 
+export interface LoginReply {
+  access_token: string
+  token_type: string
+  expires_at: number // segundos desde 1970
+  user: Identity
+}
+
 export type CaseStatus =
   | 'created'
   | 'interpreting'
@@ -176,6 +183,8 @@ export interface AgentMetrics {
   validation_clean: number
   validation_first_pass_pct: number | null
   hits: number
+  finished: number
+  first_pass_pct: number | null
   validator_fixes: number
   reopened_by_review: number
   adjusted_by_human: number
@@ -193,6 +202,7 @@ export interface AgentMetrics {
     findings_raised: number
     material_findings: number
     reworks_triggered: number
+    checked_after_rework: number
     confirmed_by_rework: number
     confirmation_pct: number | null
   } | null
@@ -516,5 +526,13 @@ export interface BenchmarkSummary {
     total_cost_usd: number | null
     cost_per_accepted_usd: number | null
     mean_latency_seconds: number
+    // a partir do benchmark de 21 casos; ausentes nos resumos antigos
+    median_latency_seconds?: number | null
+    p95_latency_seconds?: number | null
+    automatic_pass_rate_ci95?: [number, number] | null
+    cost_per_run_usd?: number | null
+    cost_per_automatic_pass_usd?: number | null
+    cases?: number
+    repetitions?: number
   }[]
 }

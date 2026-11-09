@@ -27,7 +27,7 @@ export function answerLines(r: Report, opts: { skipRework?: boolean } = {}): str
     )
   }
   if (r.alternatives.length) {
-    lines.push(`${r.alternatives.length} estruturas alternativas, comparáveis e sem preferência do sistema.`)
+    lines.push(`${r.alternatives.length} formas de estruturar a operação, sem ordem de preferência.`)
   }
   for (const a of opts.skipRework ? [] : r.assumptions.filter((x) => x.changed_in_rework)) {
     lines.push(

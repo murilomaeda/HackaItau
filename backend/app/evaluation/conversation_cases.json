@@ -30,7 +30,7 @@
     { "id": "squad-sem-pontuacao", "text": "Qual é a squad", "open_case": true, "kind": "info", "contains": ["Elegibilidade", "Revisor"] },
     { "id": "agentes", "text": "quem são os agentes", "open_case": true, "kind": "info", "contains": ["Risco"] },
     { "id": "explica", "text": "me explica a squad", "open_case": true, "kind": "info", "contains": ["Estruturação"] },
-    { "id": "proximo-passo", "text": "o que acontece agora", "open_case": true, "kind": "info", "contains": ["Executar"] },
+    { "id": "proximo-passo", "text": "o que acontece agora", "open_case": true, "kind": "info", "contains": ["Rodar análise"] },
     { "id": "opiniao", "text": "o que você acha?", "open_case": true, "kind": "no_data" },
     { "id": "fora-escopo-case", "text": "qual a capital da França?", "open_case": true, "kind": "no_data" },
     { "id": "ok", "text": "ok", "open_case": true, "kind": "info" },

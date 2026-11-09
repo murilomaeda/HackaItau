@@ -67,14 +67,14 @@ def open_questions(it: InterpretedDemand | None) -> list[OpenQuestion]:
         qs.append(
             OpenQuestion(
                 key="prazo_desejado_meses",
-                question="Existe um prazo desejado? Sem isso, a squad alinha o pagamento ao ciclo da safra.",
+                question="Existe um prazo desejado? Sem isso, o pagamento acompanha o ciclo da safra.",
             )
         )
     if not it.guarantees:
         qs.append(
             OpenQuestion(
                 key="garantias_oferecidas",
-                question="Quais garantias o cliente oferece? Sem isso, a squad considera as garantias usuais do produto.",
+                question="Quais garantias o cliente oferece? Sem isso, vale o que o produto costuma pedir.",
             )
         )
     return qs

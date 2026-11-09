@@ -33,9 +33,44 @@ from app.core.schemas.report import (
 )
 from app.orchestration.plans import ELIGIBILITY, RISK, STRUCTURING
 
+_AGENT_NAME = {
+    ELIGIBILITY: "Elegibilidade",
+    RISK: "Risco",
+    STRUCTURING: "Estruturação",
+    "credit_review": "Revisão",
+}
+
+
+# avisos que só interessam à auditoria (já estão no Event Log) não entram no relatório
+_AUDIT_ONLY = ("status_llm_sobrescrito:", "grounding_rejected:", "finding_sem_evidencia_descartado:")
+
+
+def _readable_warning(w: str) -> str | None:
+    """Aviso de validação em frase para o analista; None quando é detalhe interno."""
+    if w.startswith(_AUDIT_ONLY):
+        return None
+    if w.startswith("numero_no_texto_divergente_do_calc:"):
+        return f"o texto cita {w.split(':', 1)[1]}, que não aparece nos cálculos. Confira antes de usar esse número."
+    if w == "tese_de_pagamento_ausente":
+        return "a tese de pagamento não foi escrita."
+    if "linguagem de preferência/aprovação detectada" in w:
+        where = w.split(":", 1)[0].replace("comparison_notes", "a comparação entre opções")
+        return f"{where} tinha linguagem de preferência ou aprovação, que foi retirada."
+    if " descartada: " in w:
+        alt, why = w.split(" descartada: ", 1)
+        return f"a {alt} foi descartada ({why})."
+    return w.replace("_", " ")
+
+
+# texto fixo para avisos gerados pelo próprio sistema (o dos agentes já vem escrito para o analista)
+_SYSTEM_TEXT = {
+    "SUSPICIOUS_CONTENT": "O documento traz instruções escondidas; foi lido só como documento e elas foram ignoradas.",
+}
+
 
 def _item(i: EvidencedItem) -> ReportItem:
-    return ReportItem(text=i.message, evidence_ids=list(i.evidence_ids), severity=i.severity, code=i.code)
+    text = _SYSTEM_TEXT.get(i.code, i.message)
+    return ReportItem(text=text, evidence_ids=list(i.evidence_ids), severity=i.severity, code=i.code)
 
 
 def _assumption_views(current: list[Assumption], previous: list[Assumption]) -> list[AssumptionView]:
@@ -122,7 +157,9 @@ def consolidate(
     )
     for r in results.values():
         for w in r.warnings:
-            uncertainties.append(ReportItem(text=f"[{r.agent_id}] {w}", severity="info", code="AGENT_WARNING"))
+            if (text := _readable_warning(w)) is not None:
+                name = _AGENT_NAME.get(r.agent_id, r.agent_id)
+                uncertainties.append(ReportItem(text=f"{name}: {text}", severity="info", code="AGENT_WARNING"))
 
     assumptions: list[AssumptionView] = []
     if RISK in results:
@@ -186,7 +223,7 @@ def consolidate(
         client_id=state.scope.client_ids[0],
         generated_at=datetime.now(timezone.utc),
         summary=ReportSummary(
-            objective=f"Análise de {d.purpose or 'crédito'} — {d.crop or 'cultura n/d'} {d.cycle or ''}".strip(),
+            objective=f"Análise de {d.purpose or 'crédito'} — {d.crop or 'cultura não informada'} {d.cycle or ''}".strip(),
             requested_amount=d.requested_amount,
             purpose=d.purpose,
             crop=d.crop,

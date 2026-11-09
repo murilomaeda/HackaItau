@@ -36,7 +36,7 @@ interface Props {
 
 function StatusIcon({ status }: { status: CaseStatus | 'creating' | 'error' | null }) {
   if (status === 'creating' || (status && ACTIVE.has(status as CaseStatus))) {
-    return <LoaderCircle size={14} className="spin" aria-label="squad trabalhando" />
+    return <LoaderCircle size={14} className="spin" aria-label="análise em andamento" />
   }
   if (status === 'human_review_required' || status === 'waiting_input' || status === 'planned') {
     return <CircleDot size={14} className="waiting" aria-label="aguardando você" />

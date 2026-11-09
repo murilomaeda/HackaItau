@@ -78,7 +78,7 @@ export function SidePanel({
       )
     }
   } else if (view.kind === 'evidence') {
-    title = 'Evidência'
+    title = 'Fonte'
     back = view.back
     body = (
       <>

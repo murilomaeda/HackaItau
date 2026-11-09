@@ -8,9 +8,7 @@ from pydantic import BaseModel, Field
 from app.core.schemas.evidence import EvidenceRef
 from app.core.schemas.outputs import Alternative, Finding, ScenarioResult, Severity
 
-DISCLAIMER = (
-    "Análise gerada para suporte à decisão. Não representa aprovação de crédito. Ambiente demonstrativo com dados fictícios."
-)
+DISCLAIMER = "Documento de apoio à decisão. Não é aprovação de crédito. Ambiente de demonstração com dados fictícios."
 
 
 class ReportItem(BaseModel):

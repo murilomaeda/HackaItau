@@ -17,11 +17,11 @@ export default function App() {
   const { user, signIn, signOut } = useSession()
   const [entering, setEntering] = useState(false)
 
-  const enter: SignIn = (u, from) =>
+  const enter: SignIn = (session, from) =>
     withTransition(
       'enter',
       () => {
-        signIn(u)
+        signIn(session)
         setEntering(true)
       },
       from,

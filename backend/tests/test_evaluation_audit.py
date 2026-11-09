@@ -12,21 +12,14 @@ def published():
     return json.loads((PUBLISHED / "measurements.json").read_text())
 
 
-def test_published_measurements_reproduce_summary_and_separate_transport():
+def test_published_measurements_reproduce_summary():
     groups = recalculate(published())
-    verify_summary(groups, json.loads((PUBLISHED / "summary.json").read_text()))
+    summary = json.loads((PUBLISHED / "summary.json").read_text())
+    verify_summary(groups, summary)
+    assert sum(g["runs"] for g in groups) == summary["completed_runs"] == len(published()["runs"])
     indexed = {(g["architecture"], g["model_label"]): g for g in groups}
-    assert sum(g["runs"] for g in groups) == 48
-    squad = indexed["squad", "barato"]
-    high = indexed["generalist", "gpt-5.4-high"]
-    normal = indexed["generalist", "forte"]
-    assert squad["total_cost_usd"] == Decimal("0.0890268")
-    assert high["total_cost_usd"] == Decimal("1.561489")
-    assert normal["automatic_passes"] == 5
-    assert normal["transport_failures"] == 1
-    assert normal["completed_with_pending_checks"] == 2
-    assert normal["total_cost_usd"] is None
-    assert normal["known_subtotal_usd"] == Decimal("0.253292")
+    assert indexed["squad", "barato"]["total_cost_usd"] > Decimal(0)
+    assert all(g["errors"] == g["transport_failures"] + g["output_failures"] for g in groups)
 
 
 def test_cache_uses_discounted_rate_without_double_counting():

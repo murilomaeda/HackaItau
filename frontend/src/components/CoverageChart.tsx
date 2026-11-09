@@ -52,7 +52,7 @@ export function CoverageChart({ report }: { report: Report }) {
         )
       })}
       <figcaption className="small muted">
-        Cobertura = geração de caixa esperada ÷ valor pedido, calculada por código. Linhas verticais: limites da política
+        Cobertura = geração de caixa esperada ÷ valor pedido. Linhas verticais: limites da política
         {limits?.source_doc_id ? ` ${limits.source_doc_id}` : ''}
         {refs.length ? ` (${refs.map((r) => `${coverageText(r.v)} ${r.label}`).join(', ')})` : ''}.
       </figcaption>

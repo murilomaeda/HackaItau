@@ -21,7 +21,7 @@ from app.core.schemas.context import ExecutionContext
 from app.core.schemas.evidence import EvidenceBundle
 from app.core.schemas.outputs import OUTPUT_SCHEMAS
 from app.core.schemas.tools import ToolResult
-from app.llm.prompting import UNTRUSTED_RULES, render_evidence, render_schema, wrap_untrusted
+from app.llm.prompting import UNTRUSTED_RULES, WRITING_RULES, render_evidence, render_schema, wrap_untrusted
 from app.llm.provider import Message
 
 
@@ -141,6 +141,7 @@ class BaseAgent:
                 "Ações proibidas: " + ", ".join(card.forbidden_actions) + ".",
                 self._playbook,
                 UNTRUSTED_RULES,
+                WRITING_RULES,
             ]
         )
         sections = [f"## Tarefa\n{task.instruction}"]

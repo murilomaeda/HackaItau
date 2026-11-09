@@ -31,6 +31,9 @@ class EvidenceRegistry:
     def __len__(self) -> int:
         return len(self._items)
 
+    def items(self) -> list[EvidenceItem]:
+        return list(self._items.values())
+
     def ids(self) -> set[str]:
         return set(self._items)
 

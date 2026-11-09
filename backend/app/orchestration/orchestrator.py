@@ -30,12 +30,13 @@ from app.core.schemas.case import (
     OpenQuestion,
 )
 from app.core.schemas.context import CaseScope, ExecutionContext, UserIdentity
-from app.core.schemas.events import EventType
+from app.core.schemas.events import EventType, SecurityEventKind
 from app.core.schemas.outputs import AIReviewOutput, EligibilityOutput, Finding, ReviewOutput
 from app.core.schemas.report import HumanGateView
 from app.core.store import CaseRecord, CaseStore, RunJob
 from app.data.repository import DataRepository, KnowledgeRetriever
 from app.documents.attachments import MAX_PER_CASE, AttachmentError, extract_text, infer_type
+from app.governance import pii
 from app.governance.bootstrap_resolver import BootstrapClientResolver
 from app.governance.injection_guard import scan_record
 from app.governance.loader import load_identities
@@ -203,6 +204,9 @@ class Orchestrator:
         except AttachmentError as exc:
             raise OrchestratorError("invalid_attachment", str(exc), 422) from exc
 
+        # dado pessoal sai antes de o anexo virar documento do case; o scan de injeção abaixo vê o texto original
+        original = text
+        text, pii_counts = pii.redact(text)
         doc_id = f"ANX-{len(rec.attachments) + 1:03d}"
         now = datetime.now(timezone.utc)
         record = {
@@ -213,7 +217,7 @@ class Orchestrator:
             "extracted": {},
             "content": text,
         }
-        flagged = bool(rec.state.scope and scan_record(record, rec.state.scope).flagged)
+        flagged = bool(rec.state.scope and scan_record(record | {"content": original}, rec.state.scope).flagged)
         rec.attachments.append(record)
         rec.state.attachments.append(
             AttachmentView(
@@ -231,6 +235,11 @@ class Orchestrator:
             EventType.DOCUMENT_ATTACHED,
             {"doc_id": doc_id, "doc_type": record["type"], "chars": len(text), "truncated": truncated, "flagged": flagged},
         )
+        if pii_counts:
+            rec.events.emit(
+                EventType.SECURITY_EVENT,
+                {"kind": SecurityEventKind.PII_REDACTED.value, "doc_id": doc_id, "redacted": pii_counts, "blocked": False},
+            )
         # a Elegibilidade tinha bloqueado por este tipo de documento: o anexo cumpre o pedido
         info = rec.state.missing_info
         if rec.state.status == CaseStatus.waiting_input and info is not None and info.reason == "eligibility_blocked":

@@ -71,7 +71,7 @@ export function EvidenceView({ caseId, id }: { caseId: string; id: string }) {
     return (
       <div className="callout warn">
         <TriangleAlert size={16} />
-        <p>Esta evidência não existe neste case ({error}).</p>
+        <p>Essa fonte não está nesta análise ({error}).</p>
       </div>
     )
   }
@@ -81,7 +81,7 @@ export function EvidenceView({ caseId, id }: { caseId: string; id: string }) {
     return (
       <div className="evidence">
         <p className="evidence-kind">
-          Cálculo feito por código, rodada {item.round}, para {agentName(item.computed_by_agent)}
+          Cálculo da rodada {item.round}, para {agentName(item.computed_by_agent)}
         </p>
         <h3>{item.name}</h3>
         <pre className="formula">{item.formula}</pre>
@@ -129,7 +129,7 @@ export function EvidenceView({ caseId, id }: { caseId: string; id: string }) {
           <TriangleAlert size={16} />
           <p>
             Conteúdo suspeito de prompt injection
-            {item.out_of_scope_refs.length > 0 && `, citando ${item.out_of_scope_refs.join(', ')} (fora do escopo)`}. As
+            {item.out_of_scope_refs.length > 0 && `, citando ${item.out_of_scope_refs.join(', ')} (cliente de fora desta análise)`}. As
             permissões não mudaram.
           </p>
         </div>

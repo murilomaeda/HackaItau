@@ -99,6 +99,16 @@ def wilson(passed, count):
     return [round(max(0, center - width), 4), round(min(1, center + width), 4)]
 
 
+def _percentile(values, pct):
+    """Percentil por interpolação linear (o mesmo do numpy por padrão)."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    k = (len(ordered) - 1) * pct / 100
+    lo, hi = math.floor(k), math.ceil(k)
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (k - lo)
+
+
 def summarize(runs, reviews=None):
     reviews = reviews or {}
     groups = defaultdict(list)
@@ -131,6 +141,15 @@ def summarize(runs, reviews=None):
                 "total_cost_usd": cost,
                 "cost_per_accepted_usd": cost / accepted if complete and accepted and cost_known else None,
                 "mean_latency_seconds": sum(r["latency_seconds"] for r in rows) / len(rows),
+                "median_latency_seconds": _percentile([r["latency_seconds"] for r in rows], 50),
+                "p95_latency_seconds": _percentile([r["latency_seconds"] for r in rows], 95),
+                "automatic_pass_rate_ci95": wilson(sum(r["automatic"]["passed"] for r in rows), len(rows)),
+                "cost_per_run_usd": cost / len(rows) if cost_known else None,
+                "cost_per_automatic_pass_usd": (
+                    cost / passes if cost_known and (passes := sum(r["automatic"]["passed"] for r in rows)) else None
+                ),
+                "cases": len({r.get("case_id") for r in rows}),
+                "repetitions": max((r.get("repetition", 1) for r in rows), default=1),
             }
         )
     return summary

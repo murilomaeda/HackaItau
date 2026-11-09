@@ -2,7 +2,7 @@
   "agent_id": "agro_credit_risk",
   "name": "Agro Credit Risk Agent",
   "version": "0.1.0",
-  "description": "Interpreta métricas e cenários de stress calculados por código; identifica riscos, mitigantes, premissas qualitativas e incertezas. Não define números.",
+  "description": "Mede se a safra paga a operação. As contas são fixas: geração de caixa, alavancagem antes e depois do crédito, cobertura, três cenários de estresse (preço, produtividade e os dois juntos) e quanto preço, produtividade ou custo aguentam cair. Em cima disso, escreve a tese de pagamento, as premissas que mais pesam e as perguntas para a diligência.",
   "capabilities": ["agro_credit_risk_analysis"],
   "tools": [
     "get_client_financials",

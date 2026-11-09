@@ -3,14 +3,19 @@
 // Sem benchmark (ou sem servidor) a seção não aparece.
 import {
   archName,
+  casesOf,
   shortConfig,
   comparable,
   configName,
   cost,
+  costPerRun,
   counterpart,
   decimal,
   headline,
   modelRank,
+  passRate,
+  pct,
+  repetitionsOf,
   useBenchmark,
   usd,
   type Group,
@@ -39,24 +44,28 @@ function Body({ data }: { data: BenchmarkSummary }) {
   const h = headline(data)
   const same = h ? counterpart(data, h.squad) : null
   const sameOk = h && same && comparable(data, h.squad, same) ? same : null
-  const runs = data.groups[0].runs
-  const byCost = data.groups.filter((g) => cost(g) !== null).sort((a, b) => cost(a)! - cost(b)!)
+  const first = data.groups[0]
+  const cases = casesOf(first)
+  const reps = repetitionsOf(first)
+  const byCost = data.groups.filter((g) => cost(g) !== null).sort((a, b) => costPerRun(a)! - costPerRun(b)!)
   const noCost = data.groups.filter((g) => cost(g) === null)
-  const maxCost = Math.max(...byCost.map((g) => cost(g)!), 1e-9)
+  const maxCost = Math.max(...byCost.map((g) => costPerRun(g)!), 1e-9)
   const maxTime = Math.max(...byCost.map((g) => g.mean_latency_seconds), 1e-9)
-  const cheaperSame = h && sameOk && cost(sameOk) !== null && cost(sameOk)! < cost(h.squad)! && sameOk.automatic_passes < sameOk.runs
+  const cheaperSame =
+    h && sameOk && cost(sameOk) !== null && costPerRun(sameOk)! < costPerRun(h.squad)! && passRate(sameOk) < passRate(h.squad)
+  const sample = reps > 1 ? `${cases} casos, ${reps} vezes cada` : `${cases} casos`
 
   return (
     <section id="comparativo" className="cmp" aria-labelledby="cmp-title">
       <header className="cmp-intro">
         <p className="how-kicker">comparativo</p>
         <h2 id="cmp-title">
-          {h ? `O mesmo ${runs}/${runs}, com um modelo menor.` : 'Squad e agente generalista, lado a lado.'}
+          {h?.matched ? `O mesmo acerto, com um modelo menor.` : 'Squad e agente generalista, lado a lado.'}
         </h2>
         <p className="cmp-lede">
-          Rodamos {runs} casos sintéticos de crédito agro de duas formas: com a squad de especialistas e com um único agente
-          generalista que faz elegibilidade, risco e estruturação numa só resposta. Os dois recebem os mesmos dados, schemas,
-          validadores, cálculos e revisão; muda só a arquitetura e o modelo.
+          Rodamos {sample}, em situações fictícias de crédito agro, de duas formas: com a squad de
+          especialistas e com um único agente generalista que faz elegibilidade, risco e estruturação numa só resposta.
+          Os dois recebem os mesmos dados, cálculos, verificações e revisão; muda só a arquitetura e o modelo.
         </p>
       </header>
 
@@ -65,29 +74,29 @@ function Body({ data }: { data: BenchmarkSummary }) {
           {h.costRatio !== null && (
             <Figure
               big={`${decimal(h.costRatio)}×`}
-              label={`menos custo para chegar a ${runs}/${runs}`}
-              sub={`${usd(cost(h.squad))} na squad com ${configName(h.squad)}, contra ${usd(cost(h.generalist))} no generalista com ${configName(h.generalist)}, o mais barato a acertar todos.`}
+              label={h.matched ? 'menos custo para o mesmo acerto' : 'menos custo por análise'}
+              sub={`${usd(costPerRun(h.squad), 4)} por análise na squad com ${configName(h.squad)} (${pct(passRate(h.squad))} de acerto), contra ${usd(costPerRun(h.generalist), 4)} no generalista com ${configName(h.generalist)} (${pct(passRate(h.generalist))}), ${h.matched ? 'o mais barato a chegar ao mesmo acerto' : 'o generalista que mais acertou'}.`}
             />
           )}
           <Figure
             big={`${decimal(h.timeRatio)}×`}
-            label="mais rápido por caso"
-            sub={`${decimal(h.squad.mean_latency_seconds, 0)} s em média na squad, contra ${decimal(h.generalist.mean_latency_seconds, 0)} s no generalista, nas mesmas configurações.`}
+            label="mais rápido por análise"
+            sub={`${decimal(h.squad.mean_latency_seconds, 0)} s em média na squad, contra ${decimal(h.generalist.mean_latency_seconds, 0)} s no generalista${h.generalist.p95_latency_seconds ? `; nas análises mais lentas (p95), ${decimal(h.squad.p95_latency_seconds ?? 0, 0)} s contra ${decimal(h.generalist.p95_latency_seconds, 0)} s` : ''}.`}
           />
           {sameOk && (
             <Figure
-              big={`${h.squad.automatic_passes}/${h.squad.runs}`}
-              bigSub={`× ${sameOk.automatic_passes}/${sameOk.runs}`}
-              label={`squad × generalista, com o mesmo ${configName(h.squad)}`}
-              sub="Mesmo modelo, mesmos dados e verificações dos dois lados: muda só a arquitetura."
+              big={pct(passRate(h.squad))}
+              bigSub={`× ${pct(passRate(sameOk))}`}
+              label={`de acerto, squad × generalista com o mesmo ${configName(h.squad)}`}
+              sub={`${h.squad.automatic_passes} de ${h.squad.runs} contra ${sameOk.automatic_passes} de ${sameOk.runs}. Mesmo modelo, mesmos dados e verificações: muda só a arquitetura.`}
             />
           )}
         </div>
       )}
 
       <div className="cmp-block">
-        <h3>Casos aprovados, por modelo</h3>
-        <p className="cmp-note">Cada quadrado é um caso; cheio quando passou em todas as verificações automáticas.</p>
+        <h3>Análises aprovadas, por modelo</h3>
+        <p className="cmp-note">Cada quadrado é uma análise; cheio quando passou em todas as verificações automáticas.</p>
         <div className="cmp-matrix" role="table" aria-label="Casos aprovados por modelo e arquitetura">
           <div className="cmp-mrow head" role="row">
             <span role="columnheader">Modelo</span>
@@ -112,14 +121,14 @@ function Body({ data }: { data: BenchmarkSummary }) {
       <div className="cmp-block">
       <div className="cmp-charts">
         <Bars
-          title={`Custo total dos ${runs} casos`}
+          title="Custo médio por análise"
           hint="menor é melhor"
           groups={byCost}
-          width={(g) => (100 * cost(g)!) / maxCost}
-          value={(g) => usd(cost(g))}
+          width={(g) => (100 * costPerRun(g)!) / maxCost}
+          value={(g) => usd(costPerRun(g), 4)}
         />
         <Bars
-          title="Tempo médio por caso"
+          title="Tempo médio por análise"
           hint="menor é melhor"
           groups={byCost}
           width={(g) => (100 * g.mean_latency_seconds) / maxTime}
@@ -133,7 +142,7 @@ function Body({ data }: { data: BenchmarkSummary }) {
         <span>
           <i className="is-generalist" /> generalista
         </span>
-        <span>· ordem pelo custo · ✓ acertou todos os casos</span>
+        <span>· ordem pelo custo · ✓ acertou todas as análises</span>
       </p>
       {noCost.length > 0 && (
         <p className="cmp-note">
@@ -158,8 +167,9 @@ function Body({ data }: { data: BenchmarkSummary }) {
             {data.quality_status === 'reviewed' ? ' já foi feita.' : ' ainda está pendente.'}
           </li>
           <li>
-            São {runs} casos conhecidos, uma execução por configuração: um resultado exploratório, não prova de
-            superioridade.
+            São {sample} por configuração. A faixa de acerto com 95% de confiança vai de{' '}
+            {first.automatic_pass_rate_ci95 ? `${pct(first.automatic_pass_rate_ci95[0])} a ${pct(first.automatic_pass_rate_ci95[1])}` : '—'}{' '}
+            em {configName(first)} ({archName(first).toLowerCase()}): diferenças pequenas entre configurações não são conclusivas.
           </li>
           <li>
             O custo soma todas as chamadas, inclusive correções e retrabalho, com preços de API de referência. Não é fatura
@@ -208,7 +218,7 @@ function Cell({ g }: { g?: Group }) {
         {g.automatic_passes}/{g.runs}
       </span>
       <span className="cmp-cell-sub">
-        {c === null ? 'custo indisponível' : usd(c)} · {decimal(g.mean_latency_seconds, 0)} s
+        {pct(passRate(g))} · {c === null ? 'custo indisponível' : `${usd(costPerRun(g), 4)} por análise`} · {decimal(g.mean_latency_seconds, 0)} s
         {g.errors > 0 && ` · ${g.errors} ${g.errors === 1 ? 'falha operacional' : 'falhas operacionais'}`}
       </span>
     </span>
@@ -236,10 +246,10 @@ function Bars({
       {groups.map((g) => {
         const name = `${archName(g)} · ${shortConfig(g)}`
         return (
-          <div className="cmp-bar-row" key={`${g.architecture}|${g.model}|${g.reasoning_effort ?? ''}`} title={`${name}: ${value(g)} · ${g.automatic_passes}/${g.runs} casos`}>
+          <div className="cmp-bar-row" key={`${g.architecture}|${g.model}|${g.reasoning_effort ?? ''}`} title={`${name}: ${value(g)} · ${g.automatic_passes} de ${g.runs} análises aprovadas`}>
             <span className="cmp-bar-label">
               {name}
-              {g.automatic_passes === g.runs && <b aria-label="acertou todos os casos"> ✓</b>}
+              {g.automatic_passes === g.runs && <b aria-label="acertou todas as análises"> ✓</b>}
             </span>
             <span className="cmp-bar-track">
               <span className={`cmp-bar is-${g.architecture}`} style={{ width: `${Math.max(width(g), 0.6)}%` }} />

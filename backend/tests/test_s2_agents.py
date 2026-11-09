@@ -422,3 +422,18 @@ def test_playbooks_exist_and_forbid_decisions(registry):
         assert "## Papel" in text and "## Regras" in text
         low = text.lower()
         assert "aprov" in low and ("instruções" in low or "não confiáve" in low)
+
+
+async def test_stress_coverages_and_policy_limits_are_not_flagged_as_divergent(
+    registry, toolbox_factory, analyst, scope_001, unjustified_baseline
+):
+    first, *_ = await _run(registry, toolbox_factory, analyst, scope_001, "agro_credit_risk", FakeProvider(RISK_LLM))
+    stress = next(
+        sc for sc in RiskOutput.model_validate(first.output).stress_scenarios if sc.scenario_id == "price_minus_15pct"
+    )
+    cited = f"{stress.coverage:.2f}".replace(".", ",") + "x"
+    llm = json.loads(RISK_LLM)
+    llm["risk_narrative"] = f"No pior cenário a cobertura vai a {cited}, abaixo do mínimo confortável de 1,50x."
+    result, *_ = await _run(registry, toolbox_factory, analyst, scope_001, "agro_credit_risk", FakeProvider(json.dumps(llm)))
+    flagged = " ".join(result.warnings)
+    assert cited not in flagged and "1,50x" not in flagged

@@ -109,7 +109,7 @@ async def test_current_leverage_synonyms_do_not_create_false_missing_risk(pipeli
         ],
     )
     findings = policy_threshold_breach(_ctx(results, evidence, events))
-    assert any("net_debt_ebitda" in f.message for f in findings) != recognized
+    assert any("sobre EBITDA" in f.message for f in findings) != recognized
 
 
 async def test_clean_pipeline_only_raises_the_baseline_assumption(pipeline):
@@ -153,7 +153,7 @@ async def test_calc_inconsistent_detects_tampered_metric(pipeline):
     metrics = copy.deepcopy(results["agro_credit_risk"].output["metrics"])
     metrics["coverage"] = 9.99  # LLM "melhorou" o número; CALC registrado não bate
     findings = calc_inconsistent(_ctx(_mutated(results, "agro_credit_risk", metrics=metrics), evidence, events))
-    assert [f.code for f in findings] == ["CALC_INCONSISTENT"] and "coverage" in findings[0].message
+    assert [f.code for f in findings] == ["CALC_INCONSISTENT"] and "cobertura" in findings[0].message
     assert findings[0].evidence_ids == ["CALC-CREDIT-METRICS-R1"]
     # o output original (números vindos do CALC) passa
     assert calc_inconsistent(_ctx(results, evidence, events)) == []
@@ -292,3 +292,13 @@ async def test_output_guard_redacts_and_neutralizes(guarded_case):
     assert res.findings[0].id == "F-G-050"
     # IDs estruturais não são tocados
     assert res.report.client_id == "CLIENTE-001" and res.report.sources == rec.state.report.sources
+
+
+def test_report_keeps_internal_validation_codes_out_and_explains_the_rest():
+    from app.orchestration.consolidator import _readable_warning
+
+    assert _readable_warning("grounding_rejected:4") is None
+    assert _readable_warning("status_llm_sobrescrito:blocked->ready") is None
+    text = _readable_warning("numero_no_texto_divergente_do_calc:2,10x")
+    assert "2,10x" in text and "_" not in text
+    assert "_" not in _readable_warning("A2: linguagem de preferência/aprovação detectada")

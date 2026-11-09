@@ -1,6 +1,6 @@
 # Como testar a hipótese de custo e qualidade
 
-Para conferir os **valores apresentados na demo**, veja [a recontagem com fórmulas, registros e mapa do código](BENCHMARK_RECALCULO.md). Rode `make benchmark-audit` para conferir offline os 48 registros publicados.
+Para conferir os **valores apresentados na demo**, veja [a recontagem com fórmulas, registros e mapa do código](BENCHMARK_RECALCULO.md). Rode `make benchmark-audit` para conferir offline os registros publicados.
 
 O comparativo executa **squad e generalista com cada modelo configurado**. A hipótese é que a
 especialização permita atingir uma qualidade exigida com menor custo. O resultado não é predeterminado:
@@ -12,13 +12,23 @@ Com as dependências instaladas e `LLM_API_KEY` configurada no `.env`:
 
 ```bash
 make benchmark-plan                          # inspeciona; não chama a API
-make benchmark                              # chama a API: 32 execuções nesta configuração
+make benchmark                              # chama a API: 84 execuções nesta configuração
 make benchmark ARGS="--cases soja-base,milho-coerente"  # piloto: 8 execuções
-make benchmark ARGS="--repetitions 3"         # 96 execuções; mais consumo
+make benchmark ARGS="--repetitions 2"         # 168 execuções; mais consumo
 ```
 
-São oito situações fictícias: soja, milho com fontes coerentes, cultura divergente, documento ausente,
-mercado ausente, pedido acima do catálogo, alavancagem alta e documento com instrução maliciosa.
+São 21 situações fictícias, com 9 culturas e 9 clientes diferentes:
+
+- **Análise completa (13):** soja; milho com fontes coerentes; milho com cobertura abaixo de 1x; café com folga;
+  trigo no limite; algodão em arroba; feijão de pequeno produtor; cana em tonelada; laranja em caixa;
+  produtividade declarada acima do histórico; pedido acima do catálogo; alavancagem alta; documento com
+  instrução maliciosa.
+- **Bloqueio antes dos cálculos (8):** cultura divergente; documento ausente; mercado ausente; sem
+  demonstrações financeiras; valor abaixo do ticket mínimo; cotação em unidade incompatível; investimento sem
+  projeto técnico; comercialização sem contratos de venda.
+
+Cada caso escolhe o cliente (`client_id`) e a finalidade (`purpose`); `tests/test_evaluation.py` confere, sem
+API, que o gabarito de cada caso novo bate com o que o código faz.
 Os gabaritos e os critérios de avaliação ficam fora dos prompts. As variações são feitas em cópias
 temporárias dos mocks; não modificam a demonstração nem os casos abertos no servidor.
 
@@ -32,6 +42,28 @@ O exemplo usa snapshots da mesma família para reduzir variação de versão:
 Preços padrão consultados em 27/09/2026: [GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini)
 e [GPT-4.1](https://developers.openai.com/api/docs/models/gpt-4.1). São referências de API, não uma
 garantia de tarifa da sua conta ou de outro provedor compatível.
+
+### O que o resumo mede
+
+Por configuração (arquitetura × modelo): taxa de acerto nas verificações automáticas, com intervalo de
+confiança de 95% (Wilson); custo total, por execução e por execução aprovada; tempo médio, mediano e p95;
+chamadas e tokens. A tela de entrada compara a squad mais barata entre as de maior acerto com o generalista
+mais barato que chega ao mesmo acerto (ou, se nenhum chega, com o generalista que mais acertou), sempre por
+execução, para que lotes de tamanhos diferentes sejam comparáveis.
+
+### Combinar execuções e publicar
+
+Rodadas separadas (por exemplo, uma por modelo de raciocínio) são combinadas sem novas chamadas à API e
+publicadas para a demonstração:
+
+```bash
+backend/.venv/bin/python -m app.evaluation.replay artifacts/evaluations/<A> artifacts/evaluations/<B> --revision v3 --note "três lotes combinados"
+make benchmark-publish RUN=artifacts/evaluations/<combinado>-replay
+make benchmark-audit
+```
+
+O `replay` recusa a combinação se algum prompt ou schema mudou. O `publish` recalcula custos e totais com o
+auditor independente e só grava se baterem com o resumo.
 
 Para trocar modelos ou preços, copie `backend/app/evaluation/models.example.json` e use
 `make benchmark ARGS="--models /caminho/modelos.json"`. O mesmo endpoint e credencial do `.env` atendem

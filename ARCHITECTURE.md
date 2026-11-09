@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — Itaú-Native Agent Squads (MVP Crédito Agro)
 
-> **Status:** proposta de arquitetura, revisão 2, para aprovação. Nenhum código foi escrito.
+> **Status:** revisão 2, implementada. O código em `backend/` e `frontend/` segue este documento; a seção **24. Endurecimento de segurança** registra o que foi além do P0 (sessão, persistência, injeção disfarçada, dado pessoal).
 > **Fonte funcional:** `ESPECIFICACAO.md` (fonte de verdade do produto). Este documento define a **menor arquitetura** capaz de implementar a especificação com segurança, governança e rastreabilidade, e de ser construída em paralelo por vários coding agents.
 >
 > Convenção: identificadores, nomes de tipos, eventos e arquivos em inglês; explicações em português.
@@ -512,7 +512,7 @@ class Event(BaseModel):
 
 Payload de `TOOL_CALLED`/`PERMISSION_CHECKED`/`PERMISSION_DENIED` segue o ESPECIFICACAO §32: `{action, resource_domain, resource_key, allowed, reason, purpose, source_ids, fields_hidden, probe}`. `LLM_CALLED` carrega `{model, tokens_in, tokens_out, latency_ms, ok}` — isso é toda a "observabilidade" do P0; a UI mostra contagens simples (tool calls, fontes, eventos de segurança, tempo). Dashboard de tokens/custo é P1.
 
-Persistência: em memória. Dump JSON de runs em disco é P1.
+Persistência: SQLite (`var/atena.db`), com cada evento encadeado ao anterior por HMAC. Ver §24.
 
 ---
 
@@ -807,7 +807,7 @@ O que **deliberadamente não** será construído no P0, por quê, e o que fica c
 | # | Não construir (P0) | Por quê | Fica como |
 |---|---|---|---|
 | D1 | Microservices, fila, Redis, Kubernetes | um processo atende a demo | §22 persistência/escala |
-| D2 | Banco de dados / snapshots de run em disco | estado de um case cabe em memória | `CaseStore` trocável; dump JSON P1 |
+| D2 | ~~Banco de dados / snapshots de run em disco~~ **feito** | SQLite local, sem servidor de banco | Postgres com a mesma interface de `StateDB` (§24) |
 | D3 | Vector database / embeddings para RAG | corpus de ~5 documentos curtos; keyword search devolve `KB-*` com a mesma interface | `KnowledgeRetriever` trocável |
 | D4 | SSE/WebSocket | polling REST a 1,5 s é suficiente | §22 |
 | D5 | Múltiplos LLM providers / roteamento de modelos | um provider OpenAI-compatible e **um** modelo (`LLM_MODEL`) | `model_role` P1; `ProviderRouter` futuro |
@@ -822,9 +822,9 @@ O que **deliberadamente não** será construído no P0, por quê, e o que fica c
 | D14 | Paralelismo real de agentes | não há independência real entre os três especialistas | `depends_on` já suporta |
 | D15 | Loop de rework ilimitado / rework disparado por findings AI sem remediação conhecida | previsibilidade; findings sem remediação vão ao relatório como abertos | `max_rework_rounds` e remediations extensíveis |
 | D16 | Human "solicitar ajuste" reabrindo agentes | evita segundo loop; registrar já cumpre o acceptance criterion | P1 |
-| D17 | IAM/SSO real, tokens, sessões, seletor de usuário | `USER-DEMO-001` fixo + `identities.json`; a forma (`ExecutionContext` on-behalf-of) já é a de produção | adapter OIDC; `USER-DEMO-002` P1 |
-| D18 | Detector de injeção sofisticado | heurística basta e o detector não é barreira (defesa por capability + scope + policy) | trocar `injection_guard` |
-| D19 | DLP / redação automática de PII | campos sensíveis controlados por `never` e checados no guard | DLP no gateway |
+| D17 | IAM/SSO corporativo | sessão própria com token assinado já resolve a demo (§24); permissões continuam em `identities.json` | adapter OIDC trocando `issue`/`verify` |
+| D18 | Classificador de injeção por modelo | a heurística com normalização (§24) pega os disfarces comuns e o detector não é barreira | classificador dedicado como camada extra |
+| D19 | DLP corporativo | redação determinística de CPF, CNPJ, cartão, contato, conta e PIX já roda no Gateway, nos anexos e no Output Guard (§24) | integração com o DLP do banco |
 | D20 | Telemetria, tracing, dashboard de tokens/custo | eventos `LLM_CALLED` já carregam tokens/latência; UI mostra contadores simples | dashboard P1; OTel futuro |
 | D21 | Evals/golden dataset além do golden demo case | um teste end-to-end com provider stub protege o fluxo | `tests/golden/` |
 | D22 | `get_historical_cases` / precedentes | não é necessário para a narrativa da demo | P1 |
@@ -860,3 +860,20 @@ O que precisa existir, funcionando localmente e coberto por testes, antes de qua
 18. `Report` estruturado e imparcial com todas as seções de §16; Event Log append-only com os `EventType` congelados.
 19. Frontend de uma página: input (com toggle adversarial) → SquadBoard (cards, timeline, governance/security) → ReportView (alternativas lado a lado, source chips, findings) → Human Gate; disclaimers fixos.
 20. Testes críticos passando: policy engine (no-union, structuring ∌ financials, scope deny), bootstrap resolver, filtros/`never`, injection flag + probe, cálculos, validators (61 vs 58), output guard, orchestrator com provider stub (gate, rework 1×, human gate obrigatório), golden demo case end-to-end; `.env.example` e instruções de execução local; demo end-to-end com LLM real rodando localmente.
+
+---
+
+## 24. Endurecimento de segurança
+
+O que fechou as lacunas que a demo deixava abertas, sem servidor extra (tudo no mesmo processo, SQLite local).
+
+**Sessão (`app/security/auth.py`).** Login por senha (scrypt, ~16 MB por tentativa; usuário inexistente custa o mesmo para não revelar quem existe), devolvendo um JWT HS256 assinado pelo backend com `iss`, `aud`, `exp` e `jti`. Toda rota, exceto `/health`, `/identities` e `/auth/login`, exige o token; o usuário da requisição vem só dele. Corpo com `user_id` diferente → 403; case de outro usuário → 404 (a API não confirma IDs alheios). Logout revoga o `jti`. Falhas de login contadas por usuário e por endereço (429 com `Retry-After`). Contas de demonstração (`demo: true`, senha `atena-demo`) só entram com `DEMO_MODE=true`; usuários reais recebem hash próprio (`python -m app.security.passwd`). Cabeçalhos: CSP sem origem externa, `frame-ancestors 'none'`, `nosniff`, `no-store` na API; corpo acima de 4 MB → 413.
+
+**Persistência e audit (`core/persistence.py`, `core/events.py`).** Snapshot JSON de cada case a cada `touch()` (nunca pickle) e eventos gravados na hora. Cada evento leva `HMAC(chave, mac_anterior + corpo)`; `audit_heads` assina o tamanho da cadeia. Alterar, apagar, reordenar ou truncar eventos aparece em `GET /api/cases/{id}/audit/verify`, com o primeiro evento afetado. Triggers recusam `UPDATE`/`DELETE` na tabela de eventos. Execução interrompida por reinício volta como `failed` (`interrupted:server_restart`) e pode ser retomada. Chave em `AUTH_SECRET` ou gerada em `var/secret.key` (0600), com subchaves separadas para sessão e audit.
+
+**Injeção disfarçada (`governance/injection_guard.py`).** Antes dos padrões, o texto é normalizado (NFKC, sem acento, sem caracteres invisíveis, homóglifos cirílicos e gregos trocados) e ganha variantes: leetspeak, letras espaçadas e base64 decodificado. Padrões por categoria com peso (instruções, papel, marcadores de chat, fuga de escopo, decisão forçada, exfiltração, execução, ocultação); usar um disfarce soma pontos. IDs de cliente fora do escopo são achados mesmo com letras trocadas ou espaçadas. Continua marcando, não bloqueando: a barreira segue sendo capability + scope + policy.
+
+**Dado pessoal (`governance/pii.py`).** CPF e CNPJ com dígito verificador, cartão com Luhn, e-mail, telefone brasileiro, agência/conta e chave PIX com palavra de contexto. Redigido no Gateway (antes de virar evidência e chegar ao LLM, com `SECURITY_EVENT PII_REDACTED`), nos anexos e no Output Guard (`GUARD_PII`). Valores em reais, datas, safras e `CLIENTE-xxx` ficam intactos.
+
+**Ainda fora:** SSO corporativo, MFA, criptografia do arquivo do banco em repouso, rotação de chave e um classificador de injeção por modelo.
+

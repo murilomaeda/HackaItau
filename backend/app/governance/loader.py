@@ -38,6 +38,18 @@ def load_identities() -> dict[str, UserIdentity]:
     return {u["user_id"]: UserIdentity(**u) for u in raw["users"]}
 
 
+class Credential(BaseModel):
+    password_hash: str | None = None
+    demo: bool = False
+
+
+@lru_cache
+def load_credentials() -> dict[str, Credential]:
+    """Separado de UserIdentity: o hash nunca entra em contexto de execução nem em resposta da API."""
+    raw = _read_json(get_settings().governance_dir / "identities.json")
+    return {u["user_id"]: Credential(**u) for u in raw["users"]}
+
+
 @lru_cache
 def load_purposes() -> dict[str, PurposeSpec]:
     raw = _read_json(get_settings().governance_dir / "purposes.json")

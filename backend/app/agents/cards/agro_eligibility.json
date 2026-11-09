@@ -2,7 +2,7 @@
   "agent_id": "agro_eligibility",
   "name": "Agro Eligibility Agent",
   "version": "0.1.0",
-  "description": "Gate: verifica elegibilidade e completude documental para crédito rural antes de qualquer análise de risco.",
+  "description": "Confere se o pedido pode seguir para análise: cadastro do cliente, documentos que a política exige para a finalidade, valor acima do ticket mínimo e se a cultura pedida bate com o perfil do cliente e com a cotação disponível. Se faltar algo obrigatório, a análise para aqui e o analista recebe a lista do que falta.",
   "capabilities": ["agro_eligibility_check"],
   "tools": ["get_client_profile", "get_agro_profile", "get_available_documents", "get_market_data", "search_policy"],
   "allowed_data_domains": ["client_profile", "agro_profile", "documents", "market_data", "knowledge"],

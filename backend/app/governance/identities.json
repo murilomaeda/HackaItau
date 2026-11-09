@@ -1,5 +1,8 @@
 {
-  "_meta": { "mock": true, "note": "Identidades fictícias. P1: IAM real (ARCHITECTURE.md §22)." },
+  "_meta": {
+    "mock": true,
+    "note": "Identidades fictícias. Usuários com demo=true entram com a senha de demonstração (atena-demo) e só enquanto DEMO_MODE=true. Gerar hash de outro usuário: python -m app.security.passwd."
+  },
   "users": [
     {
       "user_id": "analyst-001",
@@ -14,7 +17,9 @@
         "knowledge",
         "product_catalog",
         "calculations"
-      ]
+      ],
+      "demo": true,
+      "password_hash": "scrypt$16384$8$1$TRGhQDgRKYBACDAHUCMl4g$bn2jXBwfIyqdcGcRy_nl3sS1tpm6OzdmlEmgLaNWhtI"
     },
     {
       "user_id": "manager-001",
@@ -28,7 +33,9 @@
         "knowledge",
         "product_catalog",
         "calculations"
-      ]
+      ],
+      "demo": true,
+      "password_hash": "scrypt$16384$8$1$04EmZXTXJ6q8Z8134t1k8A$fFyOyQDcV2fTJUboMb5L8LFrTbSwCTygCVpg8TtoK_Q"
     }
   ]
 }

@@ -10,7 +10,6 @@ export const decimal = (v: number, digits = 1) => v.toLocaleString('pt-BR', { ma
 export const usd = (v: number | null, digits = 3) =>
   v === null ? 'indisponível' : `US$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
 export const cost = (g: Group) => (g.usage_complete ? g.total_cost_usd : null)
-export const perfect = (g: Group) => g.runs > 0 && g.automatic_passes === g.runs
 
 const MODEL_NAME: Array<[RegExp, string]> = [
   [/^gpt-4\.1-mini(?:-|$)/, 'GPT-4.1 mini'],
@@ -33,12 +32,6 @@ export const shortConfig = (g: Group) =>
   [modelName(g), g.reasoning_effort ? effortName(g)!.replace('raciocínio ', '') : null].filter(Boolean).join(' · ')
 export const archName = (g: Group) => (g.architecture === 'squad' ? 'Squad' : 'Generalista')
 
-// a configuração mais barata de uma arquitetura que passou em todos os casos (com custo conhecido)
-export function cheapestPerfect(data: BenchmarkSummary, arch: Group['architecture']): Group | null {
-  const ok = data.groups.filter((g) => g.architecture === arch && perfect(g) && cost(g) !== null)
-  return ok.sort((a, b) => cost(a)! - cost(b)!)[0] ?? null
-}
-
 // o outro lado com o mesmo modelo e esforço: a comparação que isola a arquitetura
 export const counterpart = (data: BenchmarkSummary, g: Group) =>
   data.groups.find(
@@ -46,27 +39,41 @@ export const counterpart = (data: BenchmarkSummary, g: Group) =>
   ) ?? null
 
 // comparações só valem com o benchmark completo e a mesma amostra dos dois lados
-export const comparable = (data: BenchmarkSummary, a: Group, b: Group) =>
-  data.status === 'complete' && a.runs > 0 && a.runs === b.runs
+// as comparações são por execução (taxa, custo e tempo médios), então lotes de tamanhos diferentes valem
+export const comparable = (_data: BenchmarkSummary, a: Group, b: Group) => a.runs > 0 && b.runs > 0
+
+export const passRate = (g: Group) => (g.runs ? g.automatic_passes / g.runs : 0)
+export const pct = (v: number) => `${Math.round(100 * v)}%`
+// custo médio por execução: compara configurações com quantidades de execuções diferentes
+export const costPerRun = (g: Group) => (cost(g) === null || !g.runs ? null : cost(g)! / g.runs)
+export const casesOf = (g: Group) => g.cases ?? g.runs
+export const repetitionsOf = (g: Group) => g.repetitions ?? 1
 
 export interface Headline {
   squad: Group
   generalist: Group
-  costRatio: number | null // quantas vezes o generalista custou mais
+  matched: boolean // o generalista chegou à mesma taxa de acerto da squad
+  costRatio: number | null // quantas vezes o generalista custou mais por execução
   timeRatio: number // quantas vezes o generalista demorou mais
 }
 
-// "quanto custa chegar a 8/8": a squad mais barata com todos os casos contra o generalista mais barato com todos
+// A squad mais barata entre as de maior acerto, contra o generalista mais barato que chega ao mesmo acerto.
+// Se nenhum generalista chega lá, compara com o generalista de maior acerto (e o texto diz que ele ficou abaixo).
 export function headline(data: BenchmarkSummary): Headline | null {
-  const squad = cheapestPerfect(data, 'squad')
-  const generalist = cheapestPerfect(data, 'generalist')
-  if (!squad || !generalist || !comparable(data, squad, generalist)) return null
-  const sc = cost(squad)!
-  const gc = cost(generalist)!
+  const priced = data.groups.filter((g) => g.runs > 0 && cost(g) !== null)
+  const byQuality = (a: Group, b: Group) => passRate(b) - passRate(a) || costPerRun(a)! - costPerRun(b)!
+  const squad = priced.filter((g) => g.architecture === 'squad').sort(byQuality)[0]
+  if (!squad) return null
+  const generalists = priced.filter((g) => g.architecture === 'generalist')
+  const matching = generalists.filter((g) => passRate(g) >= passRate(squad)).sort((a, b) => costPerRun(a)! - costPerRun(b)!)
+  const generalist = matching[0] ?? generalists.sort(byQuality)[0]
+  if (!generalist || !comparable(data, squad, generalist)) return null
+  const sc = costPerRun(squad)!
   return {
     squad,
     generalist,
-    costRatio: sc > 0 ? gc / sc : null,
+    matched: matching.length > 0,
+    costRatio: sc > 0 ? costPerRun(generalist)! / sc : null,
     timeRatio: squad.mean_latency_seconds > 0 ? generalist.mean_latency_seconds / squad.mean_latency_seconds : 0,
   }
 }

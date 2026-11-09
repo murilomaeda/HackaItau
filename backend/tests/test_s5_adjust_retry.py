@@ -12,6 +12,7 @@ from app.core.schemas.events import EventType
 from app.llm.openai_compat import LLMError
 from app.main import app
 from app.orchestration.orchestrator import MAX_HUMAN_ADJUSTMENTS, OrchestratorError
+from tests.conftest import login
 from tests.fake_llm import StubProvider
 
 PROMPT = "O cliente Fazenda Horizonte S.A. solicita R$ 50 milhões para custeio da safra de soja 2025/26."
@@ -205,7 +206,7 @@ def _wait(client: TestClient, cid: str, timeout: float = 10.0) -> dict:
 def flaky_client():
     container = _container(FlakyProvider("StructuringOutput"))
     app.dependency_overrides[get_container] = lambda: container
-    with TestClient(app) as c:
+    with login(TestClient(app)) as c:
         yield c
     app.dependency_overrides.clear()
 

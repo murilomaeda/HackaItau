@@ -34,7 +34,7 @@ export const STARTERS: Starter[] = [
   },
   {
     label: 'Demanda sem cliente identificado',
-    hint: 'O Orquestrador pergunta o que falta',
+    hint: 'Pergunta o que falta antes de começar',
     prompt: 'Preciso de uma análise de R$ 20 milhões para custeio de milho safrinha.',
   },
 ]

@@ -81,7 +81,10 @@ def evidence_not_found(ctx: ReviewContext) -> list[Finding]:
         if missing:
             out.append(
                 ctx.finding(
-                    "EVIDENCE_NOT_FOUND", "high", f"IDs citados sem registro no case: {sorted(set(missing))}", agent_id
+                    "EVIDENCE_NOT_FOUND",
+                    "high",
+                    f"Cita fontes que não existem neste caso: {', '.join(sorted(set(missing)))}.",
+                    agent_id,
                 )
             )
     return out
@@ -95,7 +98,14 @@ def calc_inconsistent(ctx: ReviewContext) -> list[Finding]:
     ro = RiskOutput.model_validate(risk)
     calc = ctx.calc(ro.metrics.calculation_id)
     if calc is None or calc.name != CALC_CREDIT_METRICS:
-        return [ctx.finding("CALC_INCONSISTENT", "high", "metrics.calculation_id não aponta para CALC-CREDIT-METRICS", RISK)]
+        return [
+            ctx.finding(
+                "CALC_INCONSISTENT",
+                "high",
+                "Os indicadores de risco não apontam para o cálculo de capacidade de pagamento.",
+                RISK,
+            )
+        ]
     inputs = MetricInputs.model_validate({k: v for k, v in calc.inputs.items() if k in MetricInputs.model_fields})
     recomputed = credit_metrics(inputs, ctx.policy.thresholds).model_dump()
     diffs = [
@@ -114,7 +124,11 @@ def calc_inconsistent(ctx: ReviewContext) -> list[Finding]:
     if diffs:
         out.append(
             ctx.finding(
-                "CALC_INCONSISTENT", "high", f"Recomputo diverge do registrado/reportado em: {diffs}", RISK, [calc.id]
+                "CALC_INCONSISTENT",
+                "high",
+                f"Refazendo as contas, estes valores não batem com os informados: {', '.join(_label(k) for k in diffs)}.",
+                RISK,
+                [calc.id],
             )
         )
     return out
@@ -140,7 +154,8 @@ def assumption_above_baseline_unjustified(ctx: ReviewContext) -> list[Finding]:
             ctx.finding(
                 ASSUMPTION_ABOVE_BASELINE_UNJUSTIFIED,
                 "high",
-                f"Premissa `{a.name}`={a.value} acima do baseline histórico {hist} na mesma fonte, sem justificativa.",
+                f"{_cap(_label(a.name))} usada ({_n(a.value)}) está acima da média histórica "
+                f"do próprio cliente ({_n(hist)}), sem explicação para isso.",
                 RISK,
                 [a.source_id, *r.calculation_ids],
             )
@@ -171,7 +186,8 @@ def policy_threshold_breach(ctx: ReviewContext) -> list[Finding]:
             ctx.finding(
                 "POLICY_THRESHOLD_BREACH",
                 "medium",
-                f"`{name}`={value:.4f} acima do limite {limit} da política e ausente de main_risks.",
+                f"{_cap(_label(name))} de {_n(value)} passa do limite da política ({_n(limit)}) "
+                "e não aparece entre os riscos.",
                 RISK,
                 [ro.metrics.calculation_id, *t.kb_ids()],
             )
@@ -187,7 +203,7 @@ def mandatory_field_missing(ctx: ReviewContext) -> list[Finding]:
         for m in eo.missing_items:
             if m.blocking:
                 out.append(
-                    ctx.finding("MANDATORY_FIELD_MISSING", "high", f"Item obrigatório ausente: {m.item}", ELIGIBILITY)
+                    ctx.finding("MANDATORY_FIELD_MISSING", "high", f"Falta um item obrigatório: {m.item}.", ELIGIBILITY)
                 )
     struct = ctx.output(STRUCTURING)
     if struct:
@@ -199,7 +215,7 @@ def mandatory_field_missing(ctx: ReviewContext) -> list[Finding]:
                     ctx.finding(
                         "MANDATORY_FIELD_MISSING",
                         "medium",
-                        f"{alt.id}: campos vazios {empty}",
+                        f"{alt.id}: sem {', '.join(_label(f) for f in empty)}.",
                         STRUCTURING,
                         alt.evidence_ids,
                     )
@@ -220,7 +236,7 @@ def structure_vs_request_and_catalog(ctx: ReviewContext) -> list[Finding]:
                 ctx.finding(
                     "STRUCTURE_EXCEEDS_REQUEST",
                     "medium",
-                    f"{alt.id}: amount {alt.amount} > solicitado {ctx.requested_amount}",
+                    f"{alt.id}: valor de {_brl(alt.amount)} maior que o pedido ({_brl(ctx.requested_amount)}).",
                     STRUCTURING,
                     alt.evidence_ids,
                 )
@@ -228,7 +244,9 @@ def structure_vs_request_and_catalog(ctx: ReviewContext) -> list[Finding]:
         prod = catalog.get(alt.product_id)
         if prod is None:
             out.append(
-                ctx.finding("PRODUCT_UNKNOWN", "high", f"{alt.id}: produto {alt.product_id!r} fora do catálogo", STRUCTURING)
+                ctx.finding(
+                    "PRODUCT_UNKNOWN", "high", f"{alt.id}: o produto {alt.product_id} não está no catálogo.", STRUCTURING
+                )
             )
             continue
         if ctx.requested_crop is not None and not product_supports_crop(prod.data, ctx.requested_crop):
@@ -236,7 +254,7 @@ def structure_vs_request_and_catalog(ctx: ReviewContext) -> list[Finding]:
                 ctx.finding(
                     "PRODUCT_CROP_MISMATCH",
                     "high",
-                    f"{alt.id}: produto {alt.product_id} não atende à cultura {ctx.requested_crop}.",
+                    f"{alt.id}: o produto {alt.product_id} não financia {ctx.requested_crop}.",
                     STRUCTURING,
                     [prod.id, *alt.evidence_ids],
                 )
@@ -247,7 +265,7 @@ def structure_vs_request_and_catalog(ctx: ReviewContext) -> list[Finding]:
                 ctx.finding(
                     "TENOR_OUT_OF_RANGE",
                     "medium",
-                    f"{alt.id}: tenor {alt.tenor_months} fora de [{lo},{hi}]",
+                    f"{alt.id}: prazo de {alt.tenor_months} meses fora do que o produto permite ({lo} a {hi} meses).",
                     STRUCTURING,
                     [prod.id, *alt.evidence_ids],
                 )
@@ -267,13 +285,13 @@ def risk_ignored_by_structure(ctx: ReviewContext) -> list[Finding]:
     if not ignored:
         return []
     worst: Severity = "high" if any(r.severity == "high" for r in ignored) else "medium"
-    codes = " ".join(f"`{r.code}`" for r in ignored)
+    codes = "; ".join(r.message.rstrip(".") for r in ignored)
     ev = [i for r in ignored for i in r.evidence_ids] + [ctx.results[RISK].output_id]
     return [
         ctx.finding(
             RISK_IGNORED_BY_STRUCTURE,
             worst,
-            f"Riscos do Risk sem tratamento em nenhuma alternativa (addressed_risk_codes): {codes}",
+            f"Nenhuma das alternativas trata estes riscos apontados na análise de risco: {codes}.",
             STRUCTURING,
             ev,
         )
@@ -288,7 +306,8 @@ def permission_violation_attempted(ctx: ReviewContext) -> list[Finding]:
         ctx.finding(
             "PERMISSION_VIOLATION_ATTEMPTED",
             "info",
-            f"{len(seqs)} acesso(s) negado(s) pelo backend (eventos {seqs}); permissões não alteradas.",
+            f"{len(seqs)} {'pedido de acesso bloqueado' if len(seqs) == 1 else 'pedidos de acesso bloqueados'} "
+            "pelas permissões; nada foi liberado.",
             agent_id,
             status="informational",
         )
@@ -309,12 +328,45 @@ def approval_language(ctx: ReviewContext) -> list[Finding]:
                 ctx.finding(
                     "APPROVAL_LANGUAGE",
                     "medium",
-                    f"Linguagem de decisão/certeza no output: {sorted(set(hits))[:5]}",
+                    f"O texto fala como se a decisão já estivesse tomada: {', '.join(sorted(set(hits))[:5])}.",
                     agent_id,
                     [r.output_id],
                 )
             )
     return out
+
+
+_LABELS = {
+    "expected_revenue": "receita esperada",
+    "crop_cost": "custo da lavoura",
+    "expected_cash_generation": "geração de caixa",
+    "net_debt_ebitda": "dívida líquida sobre EBITDA",
+    "pro_forma_leverage": "alavancagem depois da operação",
+    "coverage": "cobertura",
+    "productivity": "produtividade",
+    "price": "preço",
+    "planted_area": "área plantada",
+    "cost_per_hectare": "custo por hectare",
+    "guarantees": "garantias",
+    "conditions": "condições",
+    "rationale": "justificativa",
+}
+
+
+def _label(key: str) -> str:
+    return _LABELS.get(key, key.replace("_", " "))
+
+
+def _cap(text: str) -> str:
+    return text[:1].upper() + text[1:]  # str.capitalize() baixaria o resto ("EBITDA" → "ebitda")
+
+
+def _n(value: float) -> str:
+    return f"{float(value):,.2f}".rstrip("0").rstrip(".").replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _brl(value: float | None) -> str:
+    return "R$ " + f"{float(value or 0):,.0f}".replace(",", ".")
 
 
 VALIDATORS = (

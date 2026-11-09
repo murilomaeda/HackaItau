@@ -39,7 +39,7 @@ interface Props {
   onOpenSidebar: () => void
 }
 
-// Desempenho dos agentes desde que o servidor subiu. Tudo vem de /api/metrics (Event Log + resultados dos cases).
+// Desempenho dos agentes em todos os cases guardados. Tudo vem de /api/metrics (Event Log + resultados dos cases).
 export function PerformanceView({ sidebarOpen, onOpenSidebar }: Props) {
   const [data, setData] = useState<Metrics | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -97,21 +97,15 @@ export function PerformanceView({ sidebarOpen, onOpenSidebar }: Props) {
           )}
           {data && data.cases === 0 && (
             <div className="perf-empty">
-              <h1>Ainda não há análises nas conversas</h1>
-              <p className="muted">
-                Rode uma análise numa conversa. As métricas contam desde que o servidor subiu, porque o estado fica em
-                memória.
-              </p>
+              <h1>Nenhuma análise ainda</h1>
+              <p className="muted">Assim que você rodar a primeira análise numa conversa, os números aparecem aqui.</p>
             </div>
           )}
           {data && data.cases > 0 && (
-            data.agents.every((a) => 'completion_pct' in a) ? <Dashboard m={data} /> : (
+            data.agents.every((a) => 'first_pass_pct' in a) ? <Dashboard m={data} /> : (
               <div className="callout warn">
                 <TriangleAlert size={16} />
-                <p>
-                  O backend ainda está usando a definição anterior das métricas. Reinicie o servidor para carregar
-                  a correção e depois atualize esta tela. Os casos atuais ficam em memória e serão perdidos ao reiniciar.
-                </p>
+                <p>O servidor está com uma versão antiga. Reinicie o servidor e atualize esta tela.</p>
               </div>
             )
           )}
@@ -128,31 +122,31 @@ function Dashboard({ m }: { m: Metrics }) {
   return (
     <>
       <section className="perf-section">
-        <h2>Uso nas conversas</h2>
-        <p className="muted small">Atividade deste servidor desde a inicialização, separada do comparativo com o generalista, no fim da página.</p>
+        <h2>Uso</h2>
+        <p className="muted small">Todas as análises guardadas. O comparativo com um agente único está no fim da página.</p>
       </section>
 
       <div className="kpis">
-        <Kpi label="Cases registrados" value={n(m.cases)} note={`${n(m.reports)} com relatório`} />
+        <Kpi label="Análises" value={n(m.cases)} note={`${n(m.reports)} com relatório`} />
         <Kpi label="Chamadas ao modelo" value={n(calls)} note={pl(m.human_decisions, 'decisão humana', 'decisões humanas')} />
         <Kpi
-          label="Tokens reais (provedor)"
+          label="Tokens gastos"
           value={compact(m.tokens.input + m.tokens.output)}
           note={`${compact(m.tokens.input)} de entrada, ${compact(m.tokens.output)} de saída`}
         />
         <Kpi
           label="Entrada média por chamada"
-          value={`${compact(ctx.per_call_squad)} tokens estimados`}
-          note="Estimativa pelo tamanho dos prompts dos especialistas"
+          value={`${compact(ctx.per_call_squad)} tokens`}
+          note="Estimado pelo tamanho do texto enviado"
         />
       </div>
 
       <section className="perf-section">
         <h2>Agentes</h2>
         <p className="muted small">
-          Conclusão mede se a execução terminou, inclusive após correções; não mede se a análise está correta.
-          Validação sem correções e devoluções da revisão são mostradas separadamente. Uma execução pode ter ambas as
-          intervenções; elas não devem ser somadas como erros distintos. Contagem desde o início do servidor.
+          A nota de cada agente é a parte das tarefas que ele entregou sem precisar refazer: o modelo acertou o formato
+          na primeira resposta, a revisão não devolveu e o analista não pediu ajuste. Uma tarefa com mais de um desses
+          problemas conta uma vez só. A nota diz se o trabalho passou pelos controles, não se a análise está certa.
         </p>
         <div className="agent-cards">
           {m.agents.map((a) => (
@@ -175,7 +169,7 @@ function Kpi({ label, value, note }: { label: string; value: string; note: strin
 }
 
 function AgentCard({ a }: { a: AgentMetrics }) {
-  const pct = a.completion_pct
+  const pct = a.first_pass_pct
   const level = pct === null ? 'none' : pct >= 80 ? 'good' : pct >= 50 ? 'warn' : 'bad'
   const meta = AGENT_META[a.agent_id]
   return (
@@ -194,80 +188,80 @@ function AgentCard({ a }: { a: AgentMetrics }) {
       {a.reviewer ? (
         <div className="accuracy">
           <div className="accuracy-head">
-            <span>Achados materiais ausentes na revisão seguinte</span>
+            <span>Problemas graves resolvidos no retrabalho</span>
             <strong>{a.reviewer.confirmation_pct === null ? 'sem dados' : `${Math.round(a.reviewer.confirmation_pct)}%`}</strong>
           </div>
           <Meter pct={a.reviewer.confirmation_pct} level="good" />
           <p className="small muted">
-            {pl(a.reviewer.findings_raised, 'achado levantado', 'achados levantados')},{' '}
-            {pl(a.reviewer.material_findings, 'material', 'materiais')},{' '}
-            {pl(a.reviewer.reworks_triggered, 'retrabalho pedido', 'retrabalhos pedidos')},{' '}
-            {pl(a.reviewer.confirmed_by_rework, 'ausente depois', 'ausentes depois')}.
+            Apontou {pl(a.reviewer.findings_raised, 'problema', 'problemas')}, {n(a.reviewer.material_findings)} graves, e
+            devolveu {pl(a.reviewer.reworks_triggered, 'tarefa', 'tarefas')}. Dos{' '}
+            {n(a.reviewer.checked_after_rework)} graves que tiveram uma revisão depois do retrabalho,{' '}
+            {n(a.reviewer.confirmed_by_rework)} não apareceram mais.
           </p>
-          <p className="small muted">O desaparecimento de um achado não comprova, por si só, que ele estava correto.</p>
+          <p className="small muted">Um problema que some pode ter sido corrigido ou só reescrito de outro jeito.</p>
         </div>
       ) : (
         <div className="accuracy">
           <div className="accuracy-head">
-            <span>Conclusão das execuções encerradas</span>
-            <strong>{pct === null ? 'sem execuções encerradas' : `${Math.round(pct)}%`}</strong>
+            <span>Entregues sem precisar refazer</span>
+            <strong>{pct === null ? 'sem tarefas encerradas' : `${Math.round(pct)}%`}</strong>
           </div>
           <Meter pct={pct} level={level} />
           <ul className="outcomes">
             <li>
               <CircleCheck size={14} className="ok" />
-              {pl(a.completed, 'concluída', 'concluídas')}
+              {n(a.hits)} de {pl(a.finished, 'tarefa', 'tarefas')} sem refazer
             </li>
             <li>
               <Wrench size={14} />
-              {pl(a.validator_fixes, 'concluída com correções', 'concluídas com correções')}
+              {pl(a.validator_fixes, 'resposta refeita pelo modelo', 'respostas refeitas pelo modelo')}
             </li>
             <li>
               <CornerUpLeft size={14} className="warn" />
               {pl(a.reopened_by_review, 'devolvida pela revisão', 'devolvidas pela revisão')}
             </li>
             <li>
+              <CornerUpLeft size={14} />
+              {pl(a.adjusted_by_human, 'ajuste pedido pelo analista', 'ajustes pedidos pelo analista')}
+            </li>
+            <li>
               <TriangleAlert size={14} className="bad" />
               {pl(a.failed, 'falha', 'falhas')}
             </li>
           </ul>
-          <p className="small muted">
-            Validação sem correções: {n(a.validation_clean)} de {n(a.completed)} concluídas
-            {a.validation_first_pass_pct === null ? '.' : ` (${Math.round(a.validation_first_pass_pct)}%).`}
-            {' '}Conclusão e validação não são medidas de acurácia factual.
-          </p>
+
         </div>
       )}
 
       <dl className="agent-stats">
         <div>
-          <dt>Tentativas iniciadas</dt>
+          <dt>Tarefas iniciadas</dt>
           <dd className="num">{n(a.runs)}{a.in_progress > 0 ? ` (${n(a.in_progress)} em andamento)` : ''}</dd>
         </div>
         <div>
-          <dt>Latência média</dt>
+          <dt>Tempo médio no modelo</dt>
           <dd className="num">{a.avg_latency_ms === null ? '—' : `${(a.avg_latency_ms / 1000).toFixed(1).replace('.', ',')} s`}</dd>
         </div>
         <div>
-          <dt>Contexto por chamada</dt>
+          <dt>Tokens enviados por chamada</dt>
           <dd className="num">{compact(a.avg_context_tokens)}</dd>
         </div>
         <div>
-          <dt>Tokens reais</dt>
+          <dt>Tokens gastos</dt>
           <dd className="num">{compact(a.tokens_in + a.tokens_out)}</dd>
         </div>
         <div>
-          <dt>Acessos a dados</dt>
+          <dt>Consultas a dados</dt>
           <dd className="num">{n(a.tool_calls)}</dd>
         </div>
         <div>
-          <dt>Ajustes pedidos</dt>
-          <dd className="num">{n(a.adjusted_by_human)}</dd>
+          <dt>Chamadas ao modelo</dt>
+          <dd className="num">{n(a.llm_calls)}</dd>
         </div>
       </dl>
 
       <details className="can-do">
-        <summary>O que pode e o que não pode fazer</summary>
+        <summary>O que ele pode e não pode fazer</summary>
         <p className="small">
           <strong>Ferramentas:</strong> {a.tools.map(toolLabel).join('; ')}.
         </p>
@@ -283,7 +277,7 @@ function AgentCard({ a }: { a: AgentMetrics }) {
         </p>
         {a.denied_calls > 0 && (
           <p className="small">
-            <ShieldCheck size={13} /> {n(a.denied_calls)} tentativa(s) de acesso negada(s) pelo backend.
+            <ShieldCheck size={13} /> {pl(a.denied_calls, 'acesso bloqueado', 'acessos bloqueados')} pelas permissões.
           </p>
         )}
       </details>

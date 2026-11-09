@@ -21,7 +21,7 @@ from app.core.schemas.events import EventType
 from app.core.schemas.evidence import AgentOutputRecord, EvidenceBundle, output_id
 from app.core.schemas.outputs import AIReviewOutput, EligibilityOutput, RiskLLMOutput, StructuringOutput
 from app.core.store import CaseRecord
-from app.llm.prompting import UNTRUSTED_RULES, render_evidence, render_schema, wrap_untrusted
+from app.llm.prompting import UNTRUSTED_RULES, WRITING_RULES, render_evidence, render_schema, wrap_untrusted
 from app.llm.provider import Message
 from app.orchestration.orchestrator import Orchestrator
 from app.orchestration.plans import ELIGIBILITY, REVIEW, RISK, STRUCTURING, plan_for
@@ -110,6 +110,8 @@ class GeneralistOrchestrator(Orchestrator):
             + "\n\n".join(self._agents.get(a).playbook for a in collected)
             + "\n\n"
             + UNTRUSTED_RULES
+            + "\n\n"
+            + WRITING_RULES
         )
         user = (
             wrap_untrusted("demanda", rec.state.interpreted.model_dump())
